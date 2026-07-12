@@ -16,7 +16,7 @@
 -   🤖 手动记录 AI Credits 总额度与已使用额度（后续可能增加自动获取功能）
 -   ⚖️ 直观对比工作进度与 AI 使用进度
 -   🗓️ 内置工作日日历，可手动设置请假/加班（但**不会支持**自动按照大小周、单休、996进行设置，**这种病态的工时模式不应当被推广**）
--   🎨 简洁直观的 Material Design 风格界面
+-   🎨 简洁优美的界面
 
 ------------------------------------------------------------------------
 
@@ -34,7 +34,19 @@
 
 ## 📱 Screenshot
 
+主页面：
+
 <img src="assets/screenshots/main.jpg" alt="main" style="zoom: 33%;" />
+
+AI Credits颜色会随着用量与工作日进度的百分比关系而改变。
+
+当AI Credits与工作日进度相当时，显示橙色：
+
+<img src="assets\screenshots\color1.jpg" alt="橙色" style="zoom:33%;" />
+
+超出进度时，红色：
+
+<img src="assets\screenshots\color2.jpg" alt="红色" style="zoom:33%;" />
 
 ------------------------------------------------------------------------
 
@@ -49,15 +61,15 @@
 
 ## 📦 Installation
 
+自行通过Android Studio构建：
+
 ``` bash
-git clone https://github.com/<your-name>/ai-pace.git
-
-cd ai-pace
-
 npm install
 
 npx expo start
 ```
+
+或从release下载apk安装
 
 ------------------------------------------------------------------------
 
