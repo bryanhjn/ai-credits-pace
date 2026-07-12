@@ -97,7 +97,7 @@ export function buildMonthDays(
       type = DayType.Workday;
     }
 
-    days.push({ year, month, day, dateIso: iso, type, name });
+    days.push({ year, month, day, dateIso: iso, type, name, originalType: null });
   }
   return days;
 }

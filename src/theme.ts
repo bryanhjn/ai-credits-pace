@@ -25,13 +25,17 @@ export const themeColors = {
   workday: '#10B981',       // 工作日 - Emerald
   weekend: '#94A3B8',       // 周末 - Slate
   holiday: '#EF4444',       // 节假日 - Red
-  adjustedWorkday: '#F59E0B', // 调休补班 - Amber
+  adjustedWorkday: '#F59E0B', // 调休 - Amber
+  overtime: '#8B5CF6',      // 加班 - Violet
+  leave: '#3B82F6',         // 请假 - Blue
   today: '#6366F1',         // 今日高亮 - Indigo
 
   // 日历日期浅色变体（用于日历单元格背景）
   workdayLight: '#34D399',       // 工作日 - Emerald 400
   holidayLight: '#F87171',       // 节假日 - Red 400
-  adjustedWorkdayLight: '#FBBF24', // 调休补班 - Amber 400
+  adjustedWorkdayLight: '#FBBF24', // 调休 - Amber 400
+  overtimeLight: '#A78BFA',      // 加班 - Violet 400
+  leaveLight: '#60A5FA',         // 请假 - Blue 400
 
   // Credits 进度条颜色（按使用比例）
   creditsSafe: '#10B981',    // <70% Emerald

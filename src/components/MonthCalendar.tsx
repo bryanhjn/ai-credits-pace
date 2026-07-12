@@ -1,6 +1,8 @@
 import React, { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Calendar, LocaleConfig } from 'react-native-calendars';
+import { IconButton, Text } from 'react-native-paper';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { DayType, type DayInfo } from '../types';
 import { themeColors } from '../theme';
 import { toIsoDate, getToday } from '../utils/dateHelpers';
@@ -25,9 +27,12 @@ interface Props {
   month: number;
   days: DayInfo[];
   onMonthChange: (year: number, month: number) => void;
+  editMode?: boolean;
+  onToggleEdit?: () => void;
+  onDayPress?: (dateIso: string) => void;
 }
 
-export default function MonthCalendar({ year, month, days, onMonthChange }: Props) {
+export default function MonthCalendar({ year, month, days, onMonthChange, editMode, onToggleEdit, onDayPress }: Props) {
   const today = getToday();
 
   const markedDates = useMemo(() => {
@@ -52,6 +57,14 @@ export default function MonthCalendar({ year, month, days, onMonthChange }: Prop
           break;
         case DayType.AdjustedWorkday:
           bgColor = themeColors.adjustedWorkdayLight;
+          textColor = '#FFFFFF';
+          break;
+        case DayType.Overtime:
+          bgColor = themeColors.overtimeLight;
+          textColor = '#FFFFFF';
+          break;
+        case DayType.Leave:
+          bgColor = themeColors.leaveLight;
           textColor = '#FFFFFF';
           break;
       }
@@ -111,35 +124,84 @@ export default function MonthCalendar({ year, month, days, onMonthChange }: Prop
 
   return (
     <View style={styles.wrapper}>
-      <Calendar
-        current={currentStr}
-        minDate={`${year - 1}-01-01`}
-        maxDate={`${year + 1}-12-31`}
-        onMonthChange={(date) => {
-          onMonthChange(date.year, date.month);
-        }}
-        markedDates={markedDates}
-        markingType="custom"
-        theme={{
-          backgroundColor: 'transparent',
-          calendarBackground: 'transparent',
-          todayTextColor: themeColors.today,
-          todayBackgroundColor: 'transparent',
-          arrowColor: themeColors.primary,
-          monthTextColor: themeColors.textPrimary,
-          textMonthFontSize: 17,
-          textMonthFontWeight: '700',
-          textDayHeaderFontSize: 13,
-          textDayHeaderFontWeight: '600',
-          textDayFontSize: 14,
-          textDayFontWeight: '500',
-          dayTextColor: themeColors.textPrimary,
-          textDisabledColor: themeColors.textMuted,
-          selectedDayBackgroundColor: 'transparent',
-          selectedDayTextColor: themeColors.textPrimary,
-        }}
-        style={styles.calendar}
-      />
+      <View style={styles.calendarContainer}>
+        <Calendar
+          current={currentStr}
+          minDate={`${year - 1}-01-01`}
+          maxDate={`${year + 1}-12-31`}
+          monthFormat="yyyy年M月"
+          onMonthChange={(date) => {
+            onMonthChange(date.year, date.month);
+          }}
+          onDayPress={editMode && onDayPress ? (d) => onDayPress(d.dateString) : undefined}
+          markedDates={markedDates}
+          markingType="custom"
+          renderArrow={(direction: string) => (
+            <MaterialCommunityIcons
+              name={direction === 'left' ? 'chevron-left' : 'chevron-right'}
+              size={28}
+              color={themeColors.primary}
+            />
+          )}
+          theme={{
+            backgroundColor: 'transparent',
+            calendarBackground: 'transparent',
+            todayTextColor: themeColors.today,
+            todayBackgroundColor: 'transparent',
+            arrowColor: themeColors.primary,
+            monthTextColor: themeColors.textPrimary,
+            textMonthFontSize: 17,
+            textMonthFontWeight: '700',
+            textDayHeaderFontSize: 13,
+            textDayHeaderFontWeight: '600',
+            textDayFontSize: 14,
+            textDayFontWeight: '500',
+            dayTextColor: themeColors.textPrimary,
+            textDisabledColor: themeColors.textMuted,
+            selectedDayBackgroundColor: 'transparent',
+            selectedDayTextColor: themeColors.textPrimary,
+            'stylesheet.calendar.header': {
+              header: {
+                flexDirection: 'row',
+                justifyContent: 'center',
+                gap: 12,
+                alignItems: 'center',
+              },
+            },
+          } as any}
+          style={styles.calendar}
+        />
+        {/* 编辑/保存按钮 */}
+        {onToggleEdit && (
+          <IconButton
+            icon={editMode ? 'content-save' : 'pencil'}
+            size={20}
+            onPress={onToggleEdit}
+            iconColor={editMode ? themeColors.primary : themeColors.textSecondary}
+            style={styles.editBtn}
+            accessibilityLabel={editMode ? '保存' : '编辑日历'}
+          />
+        )}
+      </View>
+      {/* 图例 */}
+      <View style={styles.legend}>
+        <LegendChip color={themeColors.workday} label="工作日" />
+        <LegendChip color={themeColors.weekend} label="周末" />
+        <LegendChip color={themeColors.holiday} label="节假日" />
+        <LegendChip color={themeColors.adjustedWorkday} label="调休" />
+        <LegendChip color={themeColors.leave} label="请假" />
+        <LegendChip color={themeColors.overtime} label="加班" />
+      </View>
+    </View>
+  );
+}
+
+// 图例 Chip 组件
+function LegendChip({ color, label }: { color: string; label: string }) {
+  return (
+    <View style={styles.legendChip}>
+      <View style={[styles.legendChipDot, { backgroundColor: color }]} />
+      <Text variant="labelSmall" style={styles.legendChipText}>{label}</Text>
     </View>
   );
 }
@@ -155,7 +217,43 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 8,
   },
+  calendarContainer: {
+    position: 'relative',
+  },
   calendar: {
     borderRadius: 12,
+  },
+  editBtn: {
+    position: 'absolute',
+    top: 6,
+    right: 0,
+    margin: 0,
+  },
+  legend: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-start',
+    gap: 6,
+    marginTop: 8,
+    paddingHorizontal: 4,
+    paddingBottom: 4,
+  },
+  legendChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: themeColors.surfaceVariant,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 18,
+    gap: 5,
+  },
+  legendChipDot: {
+    width: 9,
+    height: 9,
+    borderRadius: 4.5,
+  },
+  legendChipText: {
+    color: themeColors.textSecondary,
+    fontSize: 12,
   },
 });

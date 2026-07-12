@@ -25,8 +25,9 @@ export async function getWorkdays(year: number, month: number): Promise<DayInfo[
     date_iso: string;
     type: number;
     name: string | null;
+    original_type: number | null;
   }>(
-    'SELECT year, month, day, date_iso, type, name FROM monthly_workdays WHERE year = ? AND month = ? ORDER BY day ASC',
+    'SELECT year, month, day, date_iso, type, name, original_type FROM monthly_workdays WHERE year = ? AND month = ? ORDER BY day ASC',
     year,
     month
   );
@@ -37,6 +38,7 @@ export async function getWorkdays(year: number, month: number): Promise<DayInfo[
     dateIso: r.date_iso,
     type: r.type as DayType,
     name: r.name,
+    originalType: r.original_type !== null ? (r.original_type as DayType) : null,
   }));
 }
 
@@ -46,16 +48,36 @@ export async function saveWorkdays(year: number, month: number, days: DayInfo[])
   await db.withTransactionAsync(async () => {
     for (const d of days) {
       await db.runAsync(
-        'INSERT OR REPLACE INTO monthly_workdays (year, month, day, date_iso, type, name) VALUES (?, ?, ?, ?, ?, ?)',
+        'INSERT OR REPLACE INTO monthly_workdays (year, month, day, date_iso, type, name, original_type) VALUES (?, ?, ?, ?, ?, ?, ?)',
         d.year,
         d.month,
         d.day,
         d.dateIso,
         d.type,
-        d.name
+        d.name,
+        d.originalType ?? null
       );
     }
   });
+}
+
+// 更新单日的类型（编辑模式用）
+export async function updateWorkdayType(
+  year: number,
+  month: number,
+  day: number,
+  newType: DayType,
+  originalType: DayType | null
+): Promise<void> {
+  const db = await getDatabase();
+  await db.runAsync(
+    'UPDATE monthly_workdays SET type = ?, original_type = ? WHERE year = ? AND month = ? AND day = ?',
+    newType,
+    originalType,
+    year,
+    month,
+    day
+  );
 }
 
 // ===== Credits CRUD =====

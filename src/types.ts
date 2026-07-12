@@ -4,6 +4,8 @@ export enum DayType {
   Weekend = 1, // 周末休息
   Holiday = 2, // 法定节假日（休息）
   AdjustedWorkday = 3, // 调休补班（周末但需上班）
+  Overtime = 4, // 加班（编辑标记）
+  Leave = 5, // 请假（编辑标记）
 }
 
 // 单日信息
@@ -14,6 +16,7 @@ export interface DayInfo {
   dateIso: string; // 'YYYY-MM-DD'
   type: DayType;
   name: string | null; // 节假日名称，无则 null
+  originalType: DayType | null; // 编辑前的原始类型，未编辑时为 null
 }
 
 // 月度 AI Credits 设置

@@ -125,6 +125,7 @@ const styles = StyleSheet.create({
   },
   editBtn: {
     margin: 0,
+    marginRight: -8,
   },
   metrics: {
     flexDirection: 'row',

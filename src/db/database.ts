@@ -36,4 +36,15 @@ async function initSchema(db: SQLite.SQLiteDatabase): Promise<void> {
       PRIMARY KEY (year, month)
     );
   `);
+
+  // 迁移：为旧库添加 original_type 列（幂等）
+  const cols = await db.getAllAsync<{ name: string }>(
+    'PRAGMA table_info(monthly_workdays)'
+  );
+  const hasOriginalType = cols.some((c) => c.name === 'original_type');
+  if (!hasOriginalType) {
+    await db.execAsync(
+      'ALTER TABLE monthly_workdays ADD COLUMN original_type INTEGER'
+    );
+  }
 }

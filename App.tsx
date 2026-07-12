@@ -4,7 +4,6 @@ import { StatusBar } from 'expo-status-bar';
 import {
   PaperProvider,
   Text,
-  Divider,
 } from 'react-native-paper';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
@@ -18,6 +17,7 @@ import {
   hasWorkdaysCache,
   getWorkdays,
   saveWorkdays,
+  updateWorkdayType,
   getCredits,
   upsertCredits,
 } from './src/db/queries';
@@ -32,7 +32,7 @@ import {
   getToday,
   formatMonthTitle,
 } from './src/utils/dateHelpers';
-import { type DayInfo, type CreditsData, DEFAULT_TOTAL_CREDITS, DEFAULT_USED_CREDITS } from './src/types';
+import { DayType, type DayInfo, type CreditsData, DEFAULT_TOTAL_CREDITS, DEFAULT_USED_CREDITS } from './src/types';
 import { paperTheme, themeColors } from './src/theme';
 
 export default function App() {
@@ -49,6 +49,7 @@ export default function App() {
   });
   const [loading, setLoading] = useState(true);
   const [editorVisible, setEditorVisible] = useState(false);
+  const [editMode, setEditMode] = useState(false);
   const dbReady = useRef(false);
   const workdaysCache = useRef<Map<string, DayInfo[]>>(new Map());
   const creditsCache = useRef<Map<string, CreditsData>>(new Map());
@@ -140,6 +141,54 @@ export default function App() {
     setEditorVisible(false);
   };
 
+  // 编辑模式：点击日期切换加班/请假
+  const handleDayPress = useCallback(async (dateIso: string) => {
+    const idx = workdays.findIndex((d) => d.dateIso === dateIso);
+    if (idx === -1) return;
+    const day = workdays[idx];
+
+    let newType: DayType;
+    let newOriginal: DayType | null;
+    switch (day.type) {
+      case DayType.Workday:
+      case DayType.AdjustedWorkday:
+        newType = DayType.Leave;
+        newOriginal = day.type;
+        break;
+      case DayType.Weekend:
+      case DayType.Holiday:
+        newType = DayType.Overtime;
+        newOriginal = day.type;
+        break;
+      case DayType.Overtime:
+        newType = day.originalType ?? DayType.Weekend;
+        newOriginal = null;
+        break;
+      case DayType.Leave:
+        newType = day.originalType ?? DayType.Workday;
+        newOriginal = null;
+        break;
+    }
+
+    await updateWorkdayType(year, month, day.day, newType, newOriginal);
+
+    const updatedDay: DayInfo = { ...day, type: newType, originalType: newOriginal };
+    const updatedWorkdays = [...workdays];
+    updatedWorkdays[idx] = updatedDay;
+    setWorkdays(updatedWorkdays);
+
+    const cacheKey = getCacheKey(year, month);
+    const cached = workdaysCache.current.get(cacheKey);
+    if (cached) {
+      const updatedCache = [...cached];
+      const cacheIdx = cached.findIndex((d) => d.dateIso === dateIso);
+      if (cacheIdx !== -1) {
+        updatedCache[cacheIdx] = updatedDay;
+        workdaysCache.current.set(cacheKey, updatedCache);
+      }
+    }
+  }, [workdays, year, month, getCacheKey]);
+
   const monthTitle = formatMonthTitle(year, month);
 
   return (
@@ -182,15 +231,10 @@ export default function App() {
                   setYear(y);
                   setMonth(m);
                 }}
+                editMode={editMode}
+                onToggleEdit={() => setEditMode(!editMode)}
+                onDayPress={handleDayPress}
               />
-
-              {/* 图例 */}
-              <View style={styles.legend}>
-                <LegendChip color={themeColors.workday} label="工作日" />
-                <LegendChip color={themeColors.weekend} label="周末" />
-                <LegendChip color={themeColors.holiday} label="节假日" />
-                <LegendChip color={themeColors.adjustedWorkday} label="调休补班" />
-              </View>
 
               <View style={styles.bottomSpacer} />
             </ScrollView>
@@ -208,16 +252,6 @@ export default function App() {
         </SafeAreaView>
       </SafeAreaProvider>
     </PaperProvider>
-  );
-}
-
-// 图例 Chip 组件
-function LegendChip({ color, label }: { color: string; label: string }) {
-  return (
-    <View style={styles.legendChip}>
-      <View style={[styles.legendChipDot, { backgroundColor: color }]} />
-      <Text variant="labelSmall" style={styles.legendChipText}>{label}</Text>
-    </View>
   );
 }
 
@@ -239,39 +273,6 @@ const styles = StyleSheet.create({
   scroll: {
     padding: 16,
     paddingTop: 16,
-  },
-  legend: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: 8,
-    marginTop: 12,
-  },
-  legendChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: themeColors.surface,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 20,
-    gap: 6,
-    elevation: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-  },
-  legendChipDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-  },
-  legendChipText: {
-    color: themeColors.textSecondary,
-  },
-  divider: {
-    marginVertical: 16,
-    backgroundColor: themeColors.divider,
   },
   bottomSpacer: {
     height: 32,
