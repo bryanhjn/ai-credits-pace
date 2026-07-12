@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { ScrollView, View, StyleSheet } from 'react-native';
+import { ScrollView, View, StyleSheet, AppState, NativeModules } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import {
   PaperProvider,
@@ -116,6 +116,16 @@ export default function App() {
   useEffect(() => {
     loadMonth(year, month);
   }, [year, month, loadMonth]);
+
+  // app 切回前台时通知桌面组件刷新
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        NativeModules.WidgetRefreshModule?.refreshWidget();
+      }
+    });
+    return () => sub.remove();
+  }, []);
 
   // 计算工作日进度
   const totalWorkdays = countTotalWorkdays(workdays);
