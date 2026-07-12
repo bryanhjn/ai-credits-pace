@@ -3,15 +3,17 @@ import { View, StyleSheet } from 'react-native';
 import { Card, Text, IconButton } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { themeColors, getCreditsColor } from '../theme';
+import CardLoading from './CardLoading';
 
 interface Props {
   used: number;
   total: number;
   percent: number;
   onEdit: () => void;
+  loading?: boolean;
 }
 
-export default function CreditsProgress({ used, total, percent, onEdit }: Props) {
+export default function CreditsProgress({ used, total, percent, onEdit, loading }: Props) {
   const ratio = total > 0 ? used / total : 0;
   const progress = Math.min(ratio, 1);
   const color = getCreditsColor(ratio);
@@ -70,6 +72,7 @@ export default function CreditsProgress({ used, total, percent, onEdit }: Props)
             </View>
           )}
         </View>
+        <CardLoading loading={!!loading} />
       </View>
     </Card>
   );

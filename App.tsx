@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { ScrollView, View, StyleSheet, ActivityIndicator } from 'react-native';
+import { ScrollView, View, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import {
   PaperProvider,
-  Text,
 } from 'react-native-paper';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
@@ -196,12 +195,6 @@ export default function App() {
       <SafeAreaProvider>
         <StatusBar style="dark" />
         <SafeAreaView style={styles.container} edges={['top']}>
-          {loading ? (
-            <View style={styles.loading}>
-              <ActivityIndicator size="large" color={themeColors.primary} />
-              <Text variant="bodyMedium" style={styles.loadingText}>加载中...</Text>
-            </View>
-          ) : (
             <ScrollView
               contentContainerStyle={styles.scroll}
               showsVerticalScrollIndicator={false}
@@ -212,6 +205,7 @@ export default function App() {
                 total={totalWorkdays}
                 percent={workdayPercent}
                 monthTitle={monthTitle}
+                loading={loading}
               />
 
               {/* AI Credits 进度条 */}
@@ -220,6 +214,7 @@ export default function App() {
                 total={credits.totalCredits}
                 percent={creditsPercent}
                 onEdit={() => setEditorVisible(true)}
+                loading={loading}
               />
 
               {/* 日历 */}
@@ -228,17 +223,19 @@ export default function App() {
                 month={month}
                 days={workdays}
                 onMonthChange={(y, m) => {
+                  // 点击切换月份时第一时间显示 Loading
+                  setLoading(true);
                   setYear(y);
                   setMonth(m);
                 }}
                 editMode={editMode}
                 onToggleEdit={() => setEditMode(!editMode)}
                 onDayPress={handleDayPress}
+                loading={loading}
               />
 
               <View style={styles.bottomSpacer} />
             </ScrollView>
-          )}
 
           {/* Credits 编辑弹窗 */}
           <CreditsEditor
@@ -259,16 +256,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: themeColors.background,
-  },
-  loading: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: themeColors.background,
-  },
-  loadingText: {
-    marginTop: 16,
-    color: themeColors.textSecondary,
   },
   scroll: {
     padding: 16,

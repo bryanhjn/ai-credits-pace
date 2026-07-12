@@ -3,15 +3,17 @@ import { View, StyleSheet } from 'react-native';
 import { Card, Text } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { themeColors } from '../theme';
+import CardLoading from './CardLoading';
 
 interface Props {
   passed: number;
   total: number;
   percent: number;
   monthTitle: string;
+  loading?: boolean;
 }
 
-export default function WorkdayProgress({ passed, total, percent, monthTitle }: Props) {
+export default function WorkdayProgress({ passed, total, percent, monthTitle, loading }: Props) {
   const progress = total > 0 ? passed / total : 0;
 
   return (
@@ -49,6 +51,7 @@ export default function WorkdayProgress({ passed, total, percent, monthTitle }: 
             </View>
           </View>
         </View>
+        <CardLoading loading={!!loading} />
       </View>
     </Card>
   );

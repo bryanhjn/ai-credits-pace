@@ -6,6 +6,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { DayType, type DayInfo } from '../types';
 import { themeColors } from '../theme';
 import { toIsoDate, getToday } from '../utils/dateHelpers';
+import CardLoading from './CardLoading';
 
 // 配置中文 locale
 LocaleConfig.locales['zh'] = {
@@ -30,9 +31,10 @@ interface Props {
   editMode?: boolean;
   onToggleEdit?: () => void;
   onDayPress?: (dateIso: string) => void;
+  loading?: boolean;
 }
 
-export default function MonthCalendar({ year, month, days, onMonthChange, editMode, onToggleEdit, onDayPress }: Props) {
+export default function MonthCalendar({ year, month, days, onMonthChange, editMode, onToggleEdit, onDayPress, loading }: Props) {
   const today = getToday();
 
   const markedDates = useMemo(() => {
@@ -124,6 +126,7 @@ export default function MonthCalendar({ year, month, days, onMonthChange, editMo
 
   return (
     <View style={styles.wrapper}>
+      <CardLoading loading={!!loading} />
       <View style={styles.calendarContainer}>
         <Calendar
           current={currentStr}
@@ -208,6 +211,7 @@ function LegendChip({ color, label }: { color: string; label: string }) {
 
 const styles = StyleSheet.create({
   wrapper: {
+    position: 'relative',
     backgroundColor: themeColors.surface,
     borderRadius: 16,
     padding: 8,
