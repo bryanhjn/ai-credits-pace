@@ -181,7 +181,7 @@ class WorkdayWidgetProvider : AppWidgetProvider() {
         private const val TAG = "WorkdayWidget"
         const val ACTION_REFRESH = "com.bryanhjn.aicreditspace.ACTION_REFRESH_WIDGET"
         private const val DB_NAME = "monthlyProgress.db"
-        private const val DEFAULT_TOTAL_CREDITS = 3000
+        private const val DEFAULT_TOTAL_CREDITS = 6000
         private const val DEFAULT_USED_CREDITS = 0
 
         private const val COLOR_CREDITS_SAFE = 0xFF10B981.toInt()

@@ -57,3 +57,5 @@ android/app/release.keystore
 
 # iOS build outputs
 ios/build/
+
+src/buildNumber.ts

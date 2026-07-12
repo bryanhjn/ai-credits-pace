@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { ScrollView, View, StyleSheet, AppState, NativeModules } from 'react-native';
+import { ScrollView, View, Text, StyleSheet, AppState, NativeModules } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import {
   PaperProvider,
@@ -37,6 +37,10 @@ import {
 } from './src/utils/dateHelpers';
 import { DayType, type DayInfo, type CreditsData, type CopilotConfig, DEFAULT_TOTAL_CREDITS, DEFAULT_USED_CREDITS } from './src/types';
 import { paperTheme, themeColors } from './src/theme';
+
+// 应用版本号（硬编码）—— debug 构建前会自动加上 "Dev" 前缀
+const APP_VERSION = '1.2.0';
+const VERSION_LABEL = `${__DEV__ ? 'Dev ' : ''}Ver ${APP_VERSION}`;
 
 export default function App() {
   const today = getToday();
@@ -298,7 +302,7 @@ export default function App() {
                 loading={loading}
               />
 
-              <View style={styles.bottomSpacer} />
+              <Text style={styles.versionText}>{VERSION_LABEL}</Text>
             </ScrollView>
 
           {/* Credits 编辑弹窗 */}
@@ -342,8 +346,12 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingTop: 20,
   },
-  bottomSpacer: {
-    height: 28,
+  versionText: {
+    textAlign: 'center',
+    color: themeColors.textMuted,
+    fontSize: 12,
+    marginTop: 18,
+    marginBottom: 16,
   },
   fab: {
     position: 'absolute',

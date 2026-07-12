@@ -29,7 +29,7 @@ export interface CreditsData {
 }
 
 // 默认值
-export const DEFAULT_TOTAL_CREDITS = 3000;
+export const DEFAULT_TOTAL_CREDITS = 6000;
 export const DEFAULT_USED_CREDITS = 0;
 
 // 节假日 API 返回的单条数据

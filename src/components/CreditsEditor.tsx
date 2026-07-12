@@ -103,6 +103,13 @@ export default function CreditsEditor({
     onSave(total, used, config);
   };
 
+  // 快捷调整已用 Credits：基于当前数值增减
+  const adjustUsed = (delta: number) => {
+    const cur = parseFloat(usedStr) || 0;
+    const next = Math.max(0, cur + delta);
+    setUsedStr(String(next));
+  };
+
   return (
     <Portal>
       <Modal visible={visible} onDismiss={onClose} contentContainerStyle={styles.modal}>
@@ -133,17 +140,33 @@ export default function CreditsEditor({
               activeUnderlineColor={themeColors.primary}
               left={<TextInput.Icon icon="credit-card-outline" color={themeColors.textSecondary} />}
             />
-            <StableTextInput
-              label="已用 AI Credits"
-              value={usedStr}
-              onChangeText={setUsedStr}
-              mode="flat"
-              keyboardType="numeric"
-              style={styles.input}
-              underlineColor={themeColors.divider}
-              activeUnderlineColor={themeColors.primary}
-              left={<TextInput.Icon icon="chart-line" color={themeColors.textSecondary} />}
-            />
+            <View style={styles.usedRow}>
+              <StableTextInput
+                label="已用 AI Credits"
+                value={usedStr}
+                onChangeText={setUsedStr}
+                mode="flat"
+                keyboardType="numeric"
+                style={[styles.input, styles.usedInput]}
+                underlineColor={themeColors.divider}
+                activeUnderlineColor={themeColors.primary}
+                left={<TextInput.Icon icon="chart-line" color={themeColors.textSecondary} />}
+              />
+              <TouchableOpacity
+                onPress={() => adjustUsed(-50)}
+                style={styles.quickBtn}
+                activeOpacity={0.6}
+              >
+                <Text style={styles.quickBtnText}>-50</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => adjustUsed(100)}
+                style={styles.quickBtn}
+                activeOpacity={0.6}
+              >
+                <Text style={styles.quickBtnText}>+100</Text>
+              </TouchableOpacity>
+            </View>
 
             <Divider style={styles.divider} />
 
@@ -293,6 +316,30 @@ const styles = StyleSheet.create({
   input: {
     marginBottom: 16,
     backgroundColor: 'transparent',
+  },
+  usedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  usedInput: {
+    flex: 1,
+    marginBottom: 0,
+  },
+  quickBtn: {
+    minWidth: 44,
+    height: 32,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    backgroundColor: themeColors.primaryBg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: 2,
+  },
+  quickBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: themeColors.primaryDark,
   },
   buttonRow: {
     flexDirection: 'row',
