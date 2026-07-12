@@ -5,9 +5,10 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { themeColors } from '../theme';
 import type { CopilotConfig } from '../types';
 
-// 包装 Paper TextInput，通过 selection 状态保存光标位置
-// 解决 Android 受控 TextInput 在退格时光标乱跳的问题
-function NumericTextInput({ value, onChangeText, ...rest }: React.ComponentProps<typeof TextInput>) {
+// 受控 TextInput 包装：通过 selection 状态保存光标位置
+// 根因：Android 上受控 TextInput 在 value 回写时原生 EditText 会重置光标
+// 适用于弹窗内所有受控输入框（数字、用户名、PAT 等）
+function StableTextInput({ value, onChangeText, ...rest }: React.ComponentProps<typeof TextInput>) {
   const [selection, setSelection] = useState<{ start: number; end: number } | null>(null);
   return (
     <TextInput
@@ -121,7 +122,7 @@ export default function CreditsEditor({
               </Text>
             </View>
 
-            <NumericTextInput
+            <StableTextInput
               label="AI Credits 总额"
               value={totalStr}
               onChangeText={setTotalStr}
@@ -132,7 +133,7 @@ export default function CreditsEditor({
               activeUnderlineColor={themeColors.primary}
               left={<TextInput.Icon icon="credit-card-outline" color={themeColors.textSecondary} />}
             />
-            <NumericTextInput
+            <StableTextInput
               label="已用 AI Credits"
               value={usedStr}
               onChangeText={setUsedStr}
@@ -157,7 +158,7 @@ export default function CreditsEditor({
               </Text>
             </View>
 
-            <TextInput
+            <StableTextInput
               label="GitHub 用户名"
               value={githubUser}
               onChangeText={setGithubUser}
@@ -169,7 +170,7 @@ export default function CreditsEditor({
               activeUnderlineColor={themeColors.primary}
               left={<TextInput.Icon icon="account" color={themeColors.textSecondary} />}
             />
-            <TextInput
+            <StableTextInput
               label="Personal Access Token"
               value={githubToken}
               onChangeText={setGithubToken}
