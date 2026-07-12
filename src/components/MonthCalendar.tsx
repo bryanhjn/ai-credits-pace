@@ -3,6 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import { Calendar, LocaleConfig } from 'react-native-calendars';
 import { IconButton, Text } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { DayType, type DayInfo } from '../types';
 import { themeColors } from '../theme';
 import { toIsoDate, getToday } from '../utils/dateHelpers';
@@ -46,28 +47,28 @@ export default function MonthCalendar({ year, month, days, onMonthChange, editMo
 
       switch (d.type) {
         case DayType.Workday:
-          bgColor = themeColors.workdayLight;
-          textColor = '#FFFFFF';
+          bgColor = themeColors.workdayTint;
+          textColor = themeColors.workdayText;
           break;
         case DayType.Weekend:
-          bgColor = '#F1F5F9';
-          textColor = themeColors.weekend;
+          bgColor = themeColors.weekendTint;
+          textColor = themeColors.weekendText;
           break;
         case DayType.Holiday:
-          bgColor = themeColors.holidayLight;
-          textColor = '#FFFFFF';
+          bgColor = themeColors.holidayTint;
+          textColor = themeColors.holidayText;
           break;
         case DayType.AdjustedWorkday:
-          bgColor = themeColors.adjustedWorkdayLight;
-          textColor = '#FFFFFF';
+          bgColor = themeColors.adjustedWorkdayTint;
+          textColor = themeColors.adjustedWorkdayText;
           break;
         case DayType.Overtime:
-          bgColor = themeColors.overtimeLight;
-          textColor = '#FFFFFF';
+          bgColor = themeColors.overtimeTint;
+          textColor = themeColors.overtimeText;
           break;
         case DayType.Leave:
-          bgColor = themeColors.leaveLight;
-          textColor = '#FFFFFF';
+          bgColor = themeColors.leaveTint;
+          textColor = themeColors.leaveText;
           break;
       }
 
@@ -90,21 +91,26 @@ export default function MonthCalendar({ year, month, days, onMonthChange, editMo
       };
     }
 
-    // 今天高亮：圆环边框
+    // 今天高亮：精致圆环
     if (today.year === year && today.month === month) {
       const todayKey = today.iso;
       const existing = marks[todayKey];
       if (existing) {
         existing.customStyles.container = {
           ...existing.customStyles.container,
-          borderWidth: 2.5,
+          borderWidth: 2,
           borderColor: themeColors.today,
+        };
+        existing.customStyles.text = {
+          ...existing.customStyles.text,
+          color: themeColors.primaryDark,
+          fontWeight: '700',
         };
       } else {
         marks[todayKey] = {
           customStyles: {
             container: {
-              borderWidth: 2.5,
+              borderWidth: 2,
               borderColor: themeColors.today,
               borderRadius: 16,
               backgroundColor: themeColors.primaryBg,
@@ -113,7 +119,7 @@ export default function MonthCalendar({ year, month, days, onMonthChange, editMo
               justifyContent: 'center',
               alignItems: 'center',
             },
-            text: { color: themeColors.primary, fontWeight: '700', fontSize: 14 },
+            text: { color: themeColors.primaryDark, fontWeight: '700', fontSize: 14 },
           },
         };
       }
@@ -123,6 +129,18 @@ export default function MonthCalendar({ year, month, days, onMonthChange, editMo
   }, [days, year, month, today]);
 
   const currentStr = `${year}-${String(month).padStart(2, '0')}`;
+
+  const handleToggleEdit = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onToggleEdit?.();
+  };
+
+  const handleDayPress = editMode && onDayPress
+    ? (d: { dateString: string }) => {
+        Haptics.selectionAsync();
+        onDayPress(d.dateString);
+      }
+    : undefined;
 
   return (
     <View style={styles.wrapper}>
@@ -136,13 +154,13 @@ export default function MonthCalendar({ year, month, days, onMonthChange, editMo
           onMonthChange={(date) => {
             onMonthChange(date.year, date.month);
           }}
-          onDayPress={editMode && onDayPress ? (d) => onDayPress(d.dateString) : undefined}
+          onDayPress={handleDayPress}
           markedDates={markedDates}
           markingType="custom"
           renderArrow={(direction: string) => (
             <MaterialCommunityIcons
               name={direction === 'left' ? 'chevron-left' : 'chevron-right'}
-              size={28}
+              size={26}
               color={themeColors.primary}
             />
           )}
@@ -153,12 +171,12 @@ export default function MonthCalendar({ year, month, days, onMonthChange, editMo
             todayBackgroundColor: 'transparent',
             arrowColor: themeColors.primary,
             monthTextColor: themeColors.textPrimary,
-            textMonthFontSize: 17,
+            textMonthFontSize: 18,
             textMonthFontWeight: '700',
-            textDayHeaderFontSize: 13,
+            textDayHeaderFontSize: 12,
             textDayHeaderFontWeight: '600',
             textDayFontSize: 14,
-            textDayFontWeight: '500',
+            textDayFontWeight: '600',
             dayTextColor: themeColors.textPrimary,
             textDisabledColor: themeColors.textMuted,
             selectedDayBackgroundColor: 'transparent',
@@ -179,7 +197,7 @@ export default function MonthCalendar({ year, month, days, onMonthChange, editMo
           <IconButton
             icon={editMode ? 'content-save' : 'pencil'}
             size={20}
-            onPress={onToggleEdit}
+            onPress={handleToggleEdit}
             iconColor={editMode ? themeColors.primary : themeColors.textSecondary}
             style={styles.editBtn}
             accessibilityLabel={editMode ? '保存' : '编辑日历'}
@@ -213,13 +231,15 @@ const styles = StyleSheet.create({
   wrapper: {
     position: 'relative',
     backgroundColor: themeColors.surface,
-    borderRadius: 16,
-    padding: 8,
-    elevation: 2,
+    borderRadius: 20,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: themeColors.hairline,
+    elevation: 6,
     shadowColor: '#6366F1',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.20,
+    shadowRadius: 20,
   },
   calendarContainer: {
     position: 'relative',
@@ -238,7 +258,7 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     justifyContent: 'flex-start',
     gap: 6,
-    marginTop: 8,
+    marginTop: 10,
     paddingHorizontal: 4,
     paddingBottom: 4,
   },
@@ -246,18 +266,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: themeColors.surfaceVariant,
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-    borderRadius: 18,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
     gap: 5,
   },
   legendChipDot: {
-    width: 9,
-    height: 9,
-    borderRadius: 4.5,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
   legendChipText: {
-    color: themeColors.textSecondary,
-    fontSize: 12,
+    color: themeColors.textMuted,
+    fontSize: 11,
+    letterSpacing: 0.2,
   },
 });

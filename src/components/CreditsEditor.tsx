@@ -1,8 +1,23 @@
-import React, { useState, useEffect } from 'react';
-import { View, StyleSheet } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, StyleSheet, Animated, Easing } from 'react-native';
 import { Portal, Modal, Card, Text, TextInput, Button } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { themeColors } from '../theme';
+
+// 包装 Paper TextInput，通过 selection 状态保存光标位置
+// 解决 Android 受控 TextInput 在退格时光标乱跳的问题
+function NumericTextInput({ value, onChangeText, ...rest }: React.ComponentProps<typeof TextInput>) {
+  const [selection, setSelection] = useState<{ start: number; end: number } | null>(null);
+  return (
+    <TextInput
+      {...rest}
+      value={value}
+      onChangeText={onChangeText}
+      onSelectionChange={(e) => setSelection(e.nativeEvent.selection)}
+      selection={selection ?? undefined}
+    />
+  );
+}
 
 interface Props {
   visible: boolean;
@@ -12,6 +27,10 @@ interface Props {
   onSave: (total: number, used: number) => void;
   onClose: () => void;
 }
+
+// 与 react-native-paper Modal 默认动画时长一致（DEFAULT_DURATION = 220）
+const ANIM_DURATION = 220;
+const SCALE_HIDDEN = 0.92;
 
 export default function CreditsEditor({
   visible,
@@ -23,6 +42,7 @@ export default function CreditsEditor({
 }: Props) {
   const [totalStr, setTotalStr] = useState(String(totalCredits));
   const [usedStr, setUsedStr] = useState(String(usedCredits));
+  const scaleAnim = useRef(new Animated.Value(visible ? 1 : SCALE_HIDDEN)).current;
 
   useEffect(() => {
     if (visible) {
@@ -30,6 +50,16 @@ export default function CreditsEditor({
       setUsedStr(String(usedCredits));
     }
   }, [visible, totalCredits, usedCredits]);
+
+  // 打开/关闭缩放动画：Paper Modal 在关闭时会保留内容挂载直到动画结束，故可同步播放
+  useEffect(() => {
+    Animated.timing(scaleAnim, {
+      toValue: visible ? 1 : SCALE_HIDDEN,
+      duration: ANIM_DURATION,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [visible, scaleAnim]);
 
   const handleSave = () => {
     const total = parseFloat(totalStr) || 0;
@@ -40,6 +70,9 @@ export default function CreditsEditor({
   return (
     <Portal>
       <Modal visible={visible} onDismiss={onClose} contentContainerStyle={styles.modal}>
+        <Animated.View
+          style={{ transform: [{ scale: scaleAnim }] }}
+        >
         <Card style={styles.card}>
           <Card.Content>
             <View style={styles.header}>
@@ -53,7 +86,7 @@ export default function CreditsEditor({
               </Text>
             </View>
 
-            <TextInput
+            <NumericTextInput
               label="AI Credits 总额"
               value={totalStr}
               onChangeText={setTotalStr}
@@ -64,7 +97,7 @@ export default function CreditsEditor({
               activeUnderlineColor={themeColors.primary}
               left={<TextInput.Icon icon="credit-card-outline" color={themeColors.textSecondary} />}
             />
-            <TextInput
+            <NumericTextInput
               label="已用 AI Credits"
               value={usedStr}
               onChangeText={setUsedStr}
@@ -97,6 +130,7 @@ export default function CreditsEditor({
             </View>
           </Card.Content>
         </Card>
+        </Animated.View>
       </Modal>
     </Portal>
   );
@@ -111,7 +145,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: themeColors.surface,
     elevation: 4,
-    shadowColor: '#6366F1',
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.12,
     shadowRadius: 12,

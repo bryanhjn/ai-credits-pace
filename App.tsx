@@ -223,6 +223,7 @@ export default function App() {
                 used={credits.usedCredits}
                 total={credits.totalCredits}
                 percent={creditsPercent}
+                workdayPercent={workdayPercent}
                 onEdit={() => setEditorVisible(true)}
                 loading={loading}
               />
@@ -268,10 +269,10 @@ const styles = StyleSheet.create({
     backgroundColor: themeColors.background,
   },
   scroll: {
-    padding: 16,
-    paddingTop: 16,
+    padding: 20,
+    paddingTop: 20,
   },
   bottomSpacer: {
-    height: 32,
+    height: 28,
   },
 });
