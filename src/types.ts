@@ -38,3 +38,9 @@ export interface HolidayEntry {
   date: string; // 'YYYY-MM-DD'
   isOffDay: boolean; // true=放假, false=调休补班
 }
+
+// GitHub Copilot 自动获取配置
+export interface CopilotConfig {
+  username: string;
+  token: string;
+}

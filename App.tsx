@@ -3,8 +3,10 @@ import { ScrollView, View, StyleSheet, AppState, NativeModules } from 'react-nat
 import { StatusBar } from 'expo-status-bar';
 import {
   PaperProvider,
+  FAB,
 } from 'react-native-paper';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import * as Haptics from 'expo-haptics';
 
 import WorkdayProgress from './src/components/WorkdayProgress';
 import CreditsProgress from './src/components/CreditsProgress';
@@ -21,6 +23,8 @@ import {
   upsertCredits,
 } from './src/db/queries';
 import { fetchHolidaysForMonth, buildMonthDays } from './src/api/holidays';
+import { fetchCopilotCreditsUsed } from './src/api/copilot';
+import { getCopilotConfig, saveCopilotConfig, clearCopilotConfig } from './src/utils/secureStorage';
 import {
   countTotalWorkdays,
   countPassedWorkdays,
@@ -31,7 +35,7 @@ import {
   getToday,
   formatMonthTitle,
 } from './src/utils/dateHelpers';
-import { DayType, type DayInfo, type CreditsData, DEFAULT_TOTAL_CREDITS, DEFAULT_USED_CREDITS } from './src/types';
+import { DayType, type DayInfo, type CreditsData, type CopilotConfig, DEFAULT_TOTAL_CREDITS, DEFAULT_USED_CREDITS } from './src/types';
 import { paperTheme, themeColors } from './src/theme';
 
 export default function App() {
@@ -49,9 +53,14 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [editorVisible, setEditorVisible] = useState(false);
   const [editMode, setEditMode] = useState(false);
+  const [copilotConfig, setCopilotConfig] = useState<CopilotConfig | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   const dbReady = useRef(false);
   const workdaysCache = useRef<Map<string, DayInfo[]>>(new Map());
   const creditsCache = useRef<Map<string, CreditsData>>(new Map());
+  const copilotConfigRef = useRef<CopilotConfig | null>(null);
+  const yearRef = useRef(year);
+  const monthRef = useRef(month);
   const getCacheKey = useCallback((y: number, m: number) => `${y}-${m}`, []);
 
   // 加载某月数据
@@ -112,10 +121,44 @@ export default function App() {
     }
   }, [getCacheKey]);
 
+  // 从 GitHub Copilot 拉取当前周期已用额度（非阻塞，失败静默保留旧值）
+  const refreshCopilotUsed = useCallback(async (y: number, m: number) => {
+    const cfg = copilotConfigRef.current;
+    if (!cfg) return;
+    // 未来月不拉取，避免用 0 覆盖手动值
+    if (y > today.year || (y === today.year && m > today.month)) return;
+    try {
+      const used = await fetchCopilotCreditsUsed(cfg.username, cfg.token, y, m);
+      const cur = creditsCache.current.get(getCacheKey(y, m)) ?? await getCredits(y, m);
+      await upsertCredits(y, m, cur.totalCredits, used);
+      const updated = await getCredits(y, m);
+      creditsCache.current.set(getCacheKey(y, m), updated);
+      // 仅当用户仍在看该月时更新 UI
+      if (yearRef.current === y && monthRef.current === m) setCredits(updated);
+    } catch {
+      // 静默失败，保留旧值
+    }
+  }, [today.year, today.month, getCacheKey]);
+
+  // 镜像 state 到 ref，供异步回调读取最新值
+  useEffect(() => { yearRef.current = year; }, [year]);
+  useEffect(() => { monthRef.current = month; }, [month]);
+  useEffect(() => { copilotConfigRef.current = copilotConfig; }, [copilotConfig]);
+
   // 初次加载 + 月份切换
   useEffect(() => {
     loadMonth(year, month);
   }, [year, month, loadMonth]);
+
+  // 启动时加载 Copilot 配置
+  useEffect(() => {
+    getCopilotConfig().then(setCopilotConfig);
+  }, []);
+
+  // 配置存在时：启动后配置加载完成 / 切月 / 保存配置后，自动拉取已用额度
+  useEffect(() => {
+    if (copilotConfig) refreshCopilotUsed(year, month);
+  }, [year, month, copilotConfig, refreshCopilotUsed]);
 
   // app 切回前台时通知桌面组件刷新
   useEffect(() => {
@@ -142,12 +185,22 @@ export default function App() {
   const creditsPercent = Math.round(creditsRatio * 1000) / 10;
 
   // 保存 Credits
-  const handleSaveCredits = async (total: number, used: number) => {
+  const handleSaveCredits = async (
+    total: number,
+    used: number,
+    config: CopilotConfig | null
+  ) => {
     await upsertCredits(year, month, total, used);
+    if (config) await saveCopilotConfig(config.username, config.token);
+    else await clearCopilotConfig();
+    copilotConfigRef.current = config;
+    setCopilotConfig(config);
     const updated = await getCredits(year, month);
     creditsCache.current.set(getCacheKey(year, month), updated);
     setCredits(updated);
     setEditorVisible(false);
+    // 保存配置后立即触发一次拉取（若 config 非空）
+    if (config) refreshCopilotUsed(year, month);
   };
 
   // 编辑模式：点击日期切换加班/请假
@@ -254,8 +307,25 @@ export default function App() {
             totalCredits={credits.totalCredits}
             usedCredits={credits.usedCredits}
             monthTitle={monthTitle}
+            copilotConfig={copilotConfig}
             onSave={handleSaveCredits}
             onClose={() => setEditorVisible(false)}
+          />
+
+          <FAB
+            icon="refresh"
+            style={styles.fab}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              if (!copilotConfigRef.current) {
+                setEditorVisible(true);
+                return;
+              }
+              setRefreshing(true);
+              refreshCopilotUsed(year, month).finally(() => setRefreshing(false));
+            }}
+            loading={refreshing}
+            color="#FFFFFF"
           />
         </SafeAreaView>
       </SafeAreaProvider>
@@ -274,5 +344,12 @@ const styles = StyleSheet.create({
   },
   bottomSpacer: {
     height: 28,
+  },
+  fab: {
+    position: 'absolute',
+    right: 20,
+    bottom: 24,
+    backgroundColor: themeColors.primary,
+    borderRadius: 16,
   },
 });

@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, StyleSheet, Animated } from 'react-native';
-import { Portal, Modal, Card, Text, TextInput, Button } from 'react-native-paper';
+import { View, StyleSheet, Animated, TouchableOpacity } from 'react-native';
+import { Portal, Modal, Card, Text, TextInput, Button, Divider } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { themeColors } from '../theme';
+import type { CopilotConfig } from '../types';
 
 // 包装 Paper TextInput，通过 selection 状态保存光标位置
 // 解决 Android 受控 TextInput 在退格时光标乱跳的问题
@@ -24,7 +25,8 @@ interface Props {
   totalCredits: number;
   usedCredits: number;
   monthTitle: string;
-  onSave: (total: number, used: number) => void;
+  copilotConfig: CopilotConfig | null;
+  onSave: (total: number, used: number, config: CopilotConfig | null) => void;
   onClose: () => void;
 }
 
@@ -37,11 +39,15 @@ export default function CreditsEditor({
   totalCredits,
   usedCredits,
   monthTitle,
+  copilotConfig,
   onSave,
   onClose,
 }: Props) {
   const [totalStr, setTotalStr] = useState(String(totalCredits));
   const [usedStr, setUsedStr] = useState(String(usedCredits));
+  const [githubUser, setGithubUser] = useState('');
+  const [githubToken, setGithubToken] = useState('');
+  const [helpVisible, setHelpVisible] = useState(false);
   const scaleAnim = useRef(new Animated.Value(SCALE_HIDDEN)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
 
@@ -49,8 +55,10 @@ export default function CreditsEditor({
     if (visible) {
       setTotalStr(String(totalCredits));
       setUsedStr(String(usedCredits));
+      setGithubUser(copilotConfig?.username ?? '');
+      setGithubToken(copilotConfig?.token ?? '');
     }
-  }, [visible, totalCredits, usedCredits]);
+  }, [visible, totalCredits, usedCredits, copilotConfig]);
 
   // 打开/关闭动画：缩放 + 淡入淡出（shadow* 不依赖 elevation，故可随 opacity 淡出）
   useEffect(() => {
@@ -87,7 +95,11 @@ export default function CreditsEditor({
   const handleSave = () => {
     const total = parseFloat(totalStr) || 0;
     const used = parseFloat(usedStr) || 0;
-    onSave(total, used);
+    const config =
+      githubUser.trim() && githubToken.trim()
+        ? { username: githubUser.trim(), token: githubToken.trim() }
+        : null;
+    onSave(total, used, config);
   };
 
   return (
@@ -132,6 +144,55 @@ export default function CreditsEditor({
               left={<TextInput.Icon icon="chart-line" color={themeColors.textSecondary} />}
             />
 
+            <Divider style={styles.divider} />
+
+            <View style={styles.sectionHeader}>
+              <MaterialCommunityIcons
+                name="github"
+                size={20}
+                color={themeColors.primary}
+              />
+              <Text variant="titleSmall" style={styles.sectionTitle}>
+                GitHub Copilot 自动获取
+              </Text>
+            </View>
+
+            <TextInput
+              label="GitHub 用户名"
+              value={githubUser}
+              onChangeText={setGithubUser}
+              mode="flat"
+              autoCapitalize="none"
+              autoCorrect={false}
+              style={styles.input}
+              underlineColor={themeColors.divider}
+              activeUnderlineColor={themeColors.primary}
+              left={<TextInput.Icon icon="account" color={themeColors.textSecondary} />}
+            />
+            <TextInput
+              label="Personal Access Token"
+              value={githubToken}
+              onChangeText={setGithubToken}
+              mode="flat"
+              secureTextEntry
+              autoCapitalize="none"
+              autoCorrect={false}
+              style={styles.input}
+              underlineColor={themeColors.divider}
+              activeUnderlineColor={themeColors.primary}
+              left={<TextInput.Icon icon="key" color={themeColors.textSecondary} />}
+            />
+            <TouchableOpacity
+              onPress={() => setHelpVisible(true)}
+              style={styles.helpLink}
+              activeOpacity={0.6}
+            >
+              <MaterialCommunityIcons name="information" size={16} color={themeColors.primary} />
+              <Text variant="bodySmall" style={styles.helpLinkText}>
+                如何获取？
+              </Text>
+            </TouchableOpacity>
+
             <View style={styles.buttonRow}>
               <Button
                 mode="outlined"
@@ -154,6 +215,51 @@ export default function CreditsEditor({
           </Card.Content>
         </Card>
         </Animated.View>
+      </Modal>
+
+      {/* PAT 获取帮助弹窗 */}
+      <Modal
+        visible={helpVisible}
+        onDismiss={() => setHelpVisible(false)}
+        contentContainerStyle={styles.modal}
+      >
+        <Card style={styles.card} elevation={0}>
+          <Card.Content>
+            <View style={styles.helpHeader}>
+              <MaterialCommunityIcons name="information" size={22} color={themeColors.primary} />
+              <Text variant="titleMedium" style={styles.helpTitle}>
+                如何获取 GitHub PAT
+              </Text>
+            </View>
+
+            <Text variant="bodyMedium" style={styles.helpBody}>
+{`1、打开GitHub → 头像 → Settings → Developer settings → Personal access tokens → Fine-grained tokens
+2、点击 Generate new token
+3、底部的Permissions，点击Add permissions，勾选"Plan"
+4、其余字段按需填写，建议按照"最小权限原则"进行配置
+5、点击Generate token`}
+            </Text>
+
+            <View style={styles.helpNote}>
+              <MaterialCommunityIcons name="shield-lock" size={16} color={themeColors.textSecondary} />
+              <Text variant="bodySmall" style={styles.helpNoteText}>
+                你的PAT通过secureStorage加密存入系统 Keystore/Keychain，仅本地存储，仅用于直接请求 api.github.com
+              </Text>
+            </View>
+
+            <View style={styles.buttonRow}>
+              <Button
+                mode="contained"
+                onPress={() => setHelpVisible(false)}
+                style={styles.saveBtn}
+                buttonColor={themeColors.primary}
+                textColor="#FFFFFF"
+              >
+                知道了
+              </Button>
+            </View>
+          </Card.Content>
+        </Card>
       </Modal>
     </Portal>
   );
@@ -200,5 +306,56 @@ const styles = StyleSheet.create({
   saveBtn: {
     borderRadius: 10,
     minWidth: 80,
+  },
+  divider: {
+    marginVertical: 16,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  sectionTitle: {
+    fontWeight: '700',
+    color: themeColors.textPrimary,
+  },
+  helpLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 12,
+  },
+  helpLinkText: {
+    color: themeColors.primary,
+  },
+  helpHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 16,
+  },
+  helpTitle: {
+    fontWeight: '700',
+    color: themeColors.textPrimary,
+  },
+  helpBody: {
+    color: themeColors.textPrimary,
+    lineHeight: 22,
+    marginBottom: 16,
+  },
+  helpNote: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    backgroundColor: themeColors.background,
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 8,
+  },
+  helpNoteText: {
+    flex: 1,
+    color: themeColors.textSecondary,
+    lineHeight: 18,
   },
 });
