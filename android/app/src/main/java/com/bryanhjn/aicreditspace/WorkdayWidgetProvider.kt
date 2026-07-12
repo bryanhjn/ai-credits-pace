@@ -1,4 +1,4 @@
-package com.vibecoding.monthlyprogress
+package com.bryanhjn.aicreditspace
 
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
@@ -179,7 +179,7 @@ class WorkdayWidgetProvider : AppWidgetProvider() {
 
     companion object {
         private const val TAG = "WorkdayWidget"
-        const val ACTION_REFRESH = "com.vibecoding.monthlyprogress.ACTION_REFRESH_WIDGET"
+        const val ACTION_REFRESH = "com.bryanhjn.aicreditspace.ACTION_REFRESH_WIDGET"
         private const val DB_NAME = "monthlyProgress.db"
         private const val DEFAULT_TOTAL_CREDITS = 3000
         private const val DEFAULT_USED_CREDITS = 0

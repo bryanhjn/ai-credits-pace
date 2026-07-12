@@ -1,4 +1,4 @@
-package com.vibecoding.monthlyprogress
+package com.bryanhjn.aicreditspace
 
 import android.content.Intent
 import com.facebook.react.bridge.ReactApplicationContext

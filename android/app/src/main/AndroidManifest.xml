@@ -22,16 +22,12 @@
         <category android:name="android.intent.category.LAUNCHER"/>
       </intent-filter>
     </activity>
-    <receiver
-        android:name=".WorkdayWidgetProvider"
-        android:exported="true">
-        <intent-filter>
+    <receiver android:name=".WorkdayWidgetProvider" android:exported="true">
+      <intent-filter>
         <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
-        <action android:name="com.vibecoding.monthlyprogress.ACTION_REFRESH_WIDGET"/>
-        </intent-filter>
-        <meta-data
-        android:name="android.appwidget.provider"
-        android:resource="@xml/workday_widget_info"/>
+        <action android:name="com.bryanhjn.aicreditspace.ACTION_REFRESH_WIDGET"/>
+      </intent-filter>
+      <meta-data android:name="android.appwidget.provider" android:resource="@xml/workday_widget_info"/>
     </receiver>
   </application>
 </manifest>

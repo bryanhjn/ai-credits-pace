@@ -53,6 +53,7 @@ android/app/build/
 android/build/
 android/local.properties
 android/app/debug.keystore
+android/app/release.keystore
 
 # iOS build outputs
 ios/build/

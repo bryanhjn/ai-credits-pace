@@ -1,4 +1,4 @@
-package com.vibecoding.monthlyprogress
+package com.bryanhjn.aicreditspace
 
 import android.app.Application
 import android.content.res.Configuration

@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "月度工作日进度",
+    "name": "AI Pace",
     "slug": "monthlyProgress",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -10,7 +10,7 @@
       "supportsTablet": true
     },
     "android": {
-      "package": "com.vibecoding.monthlyprogress",
+      "package": "com.bryanhjn.aicreditspace",
       "adaptiveIcon": {
         "backgroundColor": "#F4F5F7",
         "foregroundImage": "./assets/android-icon-foreground.png",

@@ -31,7 +31,7 @@ extensions.configure(com.facebook.react.ReactSettingsExtension) { ex ->
 }
 expoAutolinking.useExpoModules()
 
-rootProject.name = '月度工作日进度'
+rootProject.name = 'AI Pace'
 
 expoAutolinking.useExpoVersionCatalog()
 

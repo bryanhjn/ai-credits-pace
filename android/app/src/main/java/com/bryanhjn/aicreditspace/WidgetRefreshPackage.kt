@@ -1,4 +1,4 @@
-package com.vibecoding.monthlyprogress
+package com.bryanhjn.aicreditspace
 
 import com.facebook.react.ReactPackage
 import com.facebook.react.bridge.NativeModule
