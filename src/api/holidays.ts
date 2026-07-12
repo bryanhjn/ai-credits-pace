@@ -13,7 +13,7 @@ const PRIMARY_URL = (year: number) =>
   `https://cdn.jsdelivr.net/gh/NateScarlet/holiday-cn@master/${year}.json`;
 
 // 回退源：timor.tech（格式不同，单独处理）
-const FALLBACK_URL = (year: number) => `http://timor.tech/api/holiday/year/${year}`;
+const FALLBACK_URL = (year: number) => `https://timor.tech/api/holiday/year/${year}`;
 
 // timor.tech 响应结构
 interface TimorResponse {

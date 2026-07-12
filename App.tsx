@@ -37,9 +37,10 @@ import {
 } from './src/utils/dateHelpers';
 import { DayType, type DayInfo, type CreditsData, type CopilotConfig, DEFAULT_TOTAL_CREDITS, DEFAULT_USED_CREDITS } from './src/types';
 import { paperTheme, themeColors } from './src/theme';
+import { expo } from './app.json';
 
-// 应用版本号（硬编码）—— debug 构建前会自动加上 "Dev" 前缀
-const APP_VERSION = '1.2.0';
+// 应用版本号 —— 以 app.json 为单一真源，debug 构建加 "Dev" 前缀
+const APP_VERSION = expo.version;
 const VERSION_LABEL = `${__DEV__ ? 'Dev ' : ''}Ver ${APP_VERSION}`;
 
 export default function App() {

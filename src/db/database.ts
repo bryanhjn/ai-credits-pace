@@ -30,7 +30,7 @@ async function initSchema(db: SQLite.SQLiteDatabase): Promise<void> {
     CREATE TABLE IF NOT EXISTS monthly_credits (
       year          INTEGER NOT NULL,
       month         INTEGER NOT NULL,
-      total_credits REAL NOT NULL DEFAULT 3000,
+      total_credits REAL NOT NULL DEFAULT 6000,
       used_credits  REAL NOT NULL DEFAULT 0,
       updated_at    TEXT NOT NULL,
       PRIMARY KEY (year, month)

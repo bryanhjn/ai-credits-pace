@@ -53,7 +53,7 @@ class WorkdayWidgetProvider : AppWidgetProvider() {
         views.setOnClickPendingIntent(R.id.widget_root, pendingIntent)
 
         val today = LocalDate.now()
-        val (workdayPercent, creditsPercent, creditsRatio) = computeProgress(context, today)
+        val (workdayPercent, creditsPercent, paceDiff) = computeProgress(context, today)
 
         // 标题行文字（标题在进度条上方）
         views.setTextViewText(
@@ -71,7 +71,7 @@ class WorkdayWidgetProvider : AppWidgetProvider() {
             workdayPercent.toInt().coerceIn(0, 100), false
         )
 
-        // Credits 进度条（按比率动态变色）
+        // Credits 进度条（按配速差值动态变色）
         views.setProgressBar(
             R.id.credits_bar, 100,
             creditsPercent.toInt().coerceIn(0, 100), false
@@ -81,7 +81,7 @@ class WorkdayWidgetProvider : AppWidgetProvider() {
             views.setColorStateList(
                 R.id.credits_bar,
                 "setProgressTintList",
-                ColorStateList.valueOf(getCreditsColor(creditsRatio))
+                ColorStateList.valueOf(getCreditsColor(paceDiff))
             )
         }
 
@@ -123,12 +123,12 @@ class WorkdayWidgetProvider : AppWidgetProvider() {
                 creditsRatio = calcCreditsRatio(used, total)
                 creditsPercent = Math.round(creditsRatio * 1000) / 10.0
             }
-            Log.d(TAG, "computeProgress: workday=$workdayPercent%, credits=$creditsPercent% (ratio=$creditsRatio)")
+            Log.d(TAG, "computeProgress: workday=$workdayPercent%, credits=$creditsPercent% (paceDiff=${creditsPercent - workdayPercent})")
         } catch (e: Exception) {
             Log.e(TAG, "computeProgress failed", e)
         }
 
-        return Triple(workdayPercent, creditsPercent, creditsRatio)
+        return Triple(workdayPercent, creditsPercent, creditsPercent - workdayPercent)
     }
 
     /** 查询当月工作日，返回 (totalWorkdays, passedWorkdays)。 */
@@ -156,7 +156,7 @@ class WorkdayWidgetProvider : AppWidgetProvider() {
         return total to passed
     }
 
-    /** 查询当月 Credits，返回 (used, total)。无数据时返回默认值 (0, 3000)。 */
+    /** 查询当月 Credits，返回 (used, total)。无数据时返回默认值 (0, 6000)。 */
     private fun queryCredits(
         db: SQLiteDatabase,
         today: LocalDate
@@ -188,6 +188,9 @@ class WorkdayWidgetProvider : AppWidgetProvider() {
         private const val COLOR_CREDITS_WARNING = 0xFFF59E0B.toInt()
         private const val COLOR_CREDITS_DANGER = 0xFFEF4444.toInt()
 
+        // 配速阈值（百分比点）—— 与 src/theme.ts PACE_THRESHOLD_PERCENT 保持一致
+        private const val PACE_THRESHOLD_PERCENT = 5.0
+
         // ===== 移植自 src/utils/workdayCalc.ts =====
 
         // DayType: 0=Workday, 1=Weekend, 2=Holiday, 3=AdjustedWorkday, 4=Overtime, 5=Leave
@@ -207,11 +210,14 @@ class WorkdayWidgetProvider : AppWidgetProvider() {
         }
 
         // ===== 移植自 src/theme.ts getCreditsColor() =====
-        // >1 → 红, >=0.7 → 橙, else → 绿
-        private fun getCreditsColor(ratio: Double): Int = when {
-            ratio > 1.0  -> COLOR_CREDITS_DANGER
-            ratio >= 0.7 -> COLOR_CREDITS_WARNING
-            else         -> COLOR_CREDITS_SAFE
+        // 基于 paceDiff = creditsPercent - workdayPercent
+        // diff < -5 → 绿（用量落后进度，充裕）
+        // diff >  5 → 红（用量超前进度，紧张）
+        // 其间      → 黄（节奏匹配）
+        private fun getCreditsColor(diff: Double): Int = when {
+            diff > PACE_THRESHOLD_PERCENT  -> COLOR_CREDITS_DANGER
+            diff < -PACE_THRESHOLD_PERCENT -> COLOR_CREDITS_SAFE
+            else                           -> COLOR_CREDITS_WARNING
         }
 
         // 格式化为 1 位小数字符串（与 app 内显示一致，固定用点号分隔）

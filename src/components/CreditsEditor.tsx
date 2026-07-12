@@ -93,14 +93,22 @@ export default function CreditsEditor({
     }
   }, [visible, scaleAnim, opacityAnim]);
 
+  // 输入校验
+  const totalNum = parseFloat(totalStr);
+  const usedNum = parseFloat(usedStr);
+  const totalInvalid = !totalStr.trim() || isNaN(totalNum) || totalNum <= 0;
+  const usedInvalid = !usedStr.trim() || isNaN(usedNum) || usedNum < 0;
+  const usedOverTotal = !totalInvalid && !usedInvalid && usedNum > totalNum;
+  const tokenFormatHint = githubToken.trim() !== '' && !githubToken.trim().startsWith('github_pat_');
+  const canSave = !totalInvalid && !usedInvalid;
+
   const handleSave = () => {
-    const total = parseFloat(totalStr) || 0;
-    const used = parseFloat(usedStr) || 0;
+    if (!canSave) return;
     const config =
       githubUser.trim() && githubToken.trim()
         ? { username: githubUser.trim(), token: githubToken.trim() }
         : null;
-    onSave(total, used, config);
+    onSave(totalNum, usedNum, config);
   };
 
   // 快捷调整已用 Credits：基于当前数值增减
@@ -138,8 +146,12 @@ export default function CreditsEditor({
               style={styles.input}
               underlineColor={themeColors.divider}
               activeUnderlineColor={themeColors.primary}
+              error={totalInvalid}
               left={<TextInput.Icon icon="credit-card-outline" color={themeColors.textSecondary} />}
             />
+            {totalInvalid && (
+              <Text style={styles.fieldError}>请输入大于 0 的数字</Text>
+            )}
             <View style={styles.usedRow}>
               <StableTextInput
                 label="已用 AI Credits"
@@ -150,6 +162,7 @@ export default function CreditsEditor({
                 style={[styles.input, styles.usedInput]}
                 underlineColor={themeColors.divider}
                 activeUnderlineColor={themeColors.primary}
+                error={usedInvalid}
                 left={<TextInput.Icon icon="chart-line" color={themeColors.textSecondary} />}
               />
               <TouchableOpacity
@@ -167,6 +180,12 @@ export default function CreditsEditor({
                 <Text style={styles.quickBtnText}>+100</Text>
               </TouchableOpacity>
             </View>
+            {usedInvalid && (
+              <Text style={styles.fieldError}>不能小于 0</Text>
+            )}
+            {usedOverTotal && (
+              <Text style={styles.fieldWarning}>已用额度超过总额度</Text>
+            )}
 
             <Divider style={styles.divider} />
 
@@ -206,6 +225,9 @@ export default function CreditsEditor({
               activeUnderlineColor={themeColors.primary}
               left={<TextInput.Icon icon="key" color={themeColors.textSecondary} />}
             />
+            {tokenFormatHint && (
+              <Text style={styles.fieldHint}>Fine-grained PAT 通常以 github_pat_ 开头</Text>
+            )}
             <TouchableOpacity
               onPress={() => setHelpVisible(true)}
               style={styles.helpLink}
@@ -232,6 +254,7 @@ export default function CreditsEditor({
                 style={styles.saveBtn}
                 buttonColor={themeColors.primary}
                 textColor="#FFFFFF"
+                disabled={!canSave}
               >
                 保存
               </Button>
@@ -316,6 +339,27 @@ const styles = StyleSheet.create({
   input: {
     marginBottom: 16,
     backgroundColor: 'transparent',
+  },
+  fieldError: {
+    color: themeColors.creditsDanger,
+    fontSize: 12,
+    marginTop: -10,
+    marginBottom: 14,
+    marginLeft: 4,
+  },
+  fieldWarning: {
+    color: themeColors.creditsWarning,
+    fontSize: 12,
+    marginTop: -10,
+    marginBottom: 14,
+    marginLeft: 4,
+  },
+  fieldHint: {
+    color: themeColors.textSecondary,
+    fontSize: 12,
+    marginTop: -10,
+    marginBottom: 14,
+    marginLeft: 4,
   },
   usedRow: {
     flexDirection: 'row',
