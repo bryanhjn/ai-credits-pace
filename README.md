@@ -38,6 +38,12 @@
 
 <img src="assets/screenshots/main.jpg" alt="main" style="zoom: 33%;" />
 
+【Beta功能】自动获取GitHub Copilot的AI Credits用量
+
+<img src="assets\screenshots\CreditsEdit.jpg" alt="CreditsEdit" style="zoom:33%;" />
+
+
+
 AI Credits颜色会随着用量与工作日进度的百分比关系而改变。
 
 当AI Credits与工作日进度相当时，显示橙色：
