@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, StyleSheet, Animated, Easing } from 'react-native';
+import { View, StyleSheet, Animated } from 'react-native';
 import { Portal, Modal, Card, Text, TextInput, Button } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { themeColors } from '../theme';
@@ -28,9 +28,9 @@ interface Props {
   onClose: () => void;
 }
 
-// 与 react-native-paper Modal 默认动画时长一致（DEFAULT_DURATION = 220）
+// Paper Modal 关闭动画时长 DEFAULT_DURATION = 220
 const ANIM_DURATION = 220;
-const SCALE_HIDDEN = 0.92;
+const SCALE_HIDDEN = 0.95;
 
 export default function CreditsEditor({
   visible,
@@ -42,7 +42,8 @@ export default function CreditsEditor({
 }: Props) {
   const [totalStr, setTotalStr] = useState(String(totalCredits));
   const [usedStr, setUsedStr] = useState(String(usedCredits));
-  const scaleAnim = useRef(new Animated.Value(visible ? 1 : SCALE_HIDDEN)).current;
+  const scaleAnim = useRef(new Animated.Value(SCALE_HIDDEN)).current;
+  const opacityAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (visible) {
@@ -51,15 +52,37 @@ export default function CreditsEditor({
     }
   }, [visible, totalCredits, usedCredits]);
 
-  // 打开/关闭缩放动画：Paper Modal 在关闭时会保留内容挂载直到动画结束，故可同步播放
+  // 打开/关闭动画：缩放 + 淡入淡出（shadow* 不依赖 elevation，故可随 opacity 淡出）
   useEffect(() => {
-    Animated.timing(scaleAnim, {
-      toValue: visible ? 1 : SCALE_HIDDEN,
-      duration: ANIM_DURATION,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }).start();
-  }, [visible, scaleAnim]);
+    if (visible) {
+      Animated.parallel([
+        Animated.spring(scaleAnim, {
+          toValue: 1,
+          useNativeDriver: true,
+          damping: 14,
+          stiffness: 170,
+        }),
+        Animated.timing(opacityAnim, {
+          toValue: 1,
+          duration: 180,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.timing(scaleAnim, {
+          toValue: SCALE_HIDDEN,
+          duration: ANIM_DURATION,
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacityAnim, {
+          toValue: 0,
+          duration: ANIM_DURATION,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [visible, scaleAnim, opacityAnim]);
 
   const handleSave = () => {
     const total = parseFloat(totalStr) || 0;
@@ -71,9 +94,9 @@ export default function CreditsEditor({
     <Portal>
       <Modal visible={visible} onDismiss={onClose} contentContainerStyle={styles.modal}>
         <Animated.View
-          style={{ transform: [{ scale: scaleAnim }] }}
+          style={{ transform: [{ scale: scaleAnim }], opacity: opacityAnim }}
         >
-        <Card style={styles.card}>
+        <Card style={styles.card} elevation={0}>
           <Card.Content>
             <View style={styles.header}>
               <MaterialCommunityIcons
@@ -144,7 +167,7 @@ const styles = StyleSheet.create({
   card: {
     borderRadius: 20,
     backgroundColor: themeColors.surface,
-    elevation: 4,
+    // 不使用 elevation，避免 Android 将阴影渲染在父视图上导致关闭时残影
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.12,
