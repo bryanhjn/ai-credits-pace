@@ -47,6 +47,12 @@ Thumbs.db
 # typescript
 *.tsbuildinfo
 
-# generated native folders
-/ios
-/android
+# Android build outputs
+android/.gradle/
+android/app/build/
+android/build/
+android/local.properties
+android/app/debug.keystore
+
+# iOS build outputs
+ios/build/
