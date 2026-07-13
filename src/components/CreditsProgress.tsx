@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import React, { useRef, useEffect } from 'react';
+import { View, StyleSheet, PanResponder } from 'react-native';
 import { Card, Text, IconButton } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -13,10 +13,16 @@ interface Props {
   percent: number;
   workdayPercent: number;
   onEdit: () => void;
+  onAdjustUsed: (delta: number) => void;
   loading?: boolean;
 }
 
-export default function CreditsProgress({ used, total, percent, workdayPercent, onEdit, loading }: Props) {
+// 滑动调整：卡片宽度内为完整行程，步进 10，全程 ±100
+const STEP_COUNT = 10;
+const STEP_CREDITS = 10;
+const MOVE_THRESHOLD = 10;
+
+export default function CreditsProgress({ used, total, percent, workdayPercent, onEdit, onAdjustUsed, loading }: Props) {
   const ratio = total > 0 ? used / total : 0;
   const progress = Math.min(ratio, 1);
   // 配速差值：Credits 使用率 − 工作日进度，决定卡片颜色
@@ -30,9 +36,55 @@ export default function CreditsProgress({ used, total, percent, workdayPercent, 
     onEdit();
   };
 
+  // ===== 滑动加减 Credits =====
+  // 宽度、上次步数、回调均走 ref，避免 PanResponder 闭包陈旧
+  const widthRef = useRef(0);
+  const lastStepRef = useRef(0);
+  const onAdjustUsedRef = useRef(onAdjustUsed);
+  const loadingRef = useRef(loading);
+  useEffect(() => { onAdjustUsedRef.current = onAdjustUsed; }, [onAdjustUsed]);
+  useEffect(() => { loadingRef.current = loading; }, [loading]);
+
+  const panResponder = useRef(
+    PanResponder.create({
+      // 仅在水平移动超过阈值时接管，垂直滚动交给 ScrollView
+      onMoveShouldSetPanResponder: (_, g) => {
+        if (loadingRef.current) return false;
+        return Math.abs(g.dx) > MOVE_THRESHOLD && Math.abs(g.dx) > Math.abs(g.dy);
+      },
+      onPanResponderGrant: () => {
+        lastStepRef.current = 0;
+      },
+      onPanResponderMove: (_, g) => {
+        const w = widthRef.current;
+        if (w <= 0) return;
+        // dx ∈ [-w, +w] → 步数 ∈ [-10, +10]
+        const ratio = Math.max(-1, Math.min(1, g.dx / w));
+        const currentStep = Math.round(ratio * STEP_COUNT);
+        if (currentStep !== lastStepRef.current) {
+          const deltaSteps = currentStep - lastStepRef.current;
+          onAdjustUsedRef.current(deltaSteps * STEP_CREDITS);
+          // iOS 滚动选择器风格的"哒"反馈
+          Haptics.selectionAsync();
+          lastStepRef.current = currentStep;
+        }
+      },
+      onPanResponderRelease: () => {
+        lastStepRef.current = 0;
+      },
+      onPanResponderTerminate: () => {
+        lastStepRef.current = 0;
+      },
+    })
+  ).current;
+
   return (
     <Card style={styles.card} mode="elevated">
-      <View style={styles.cardInner}>
+      <View
+        style={styles.cardInner}
+        onLayout={(e) => { widthRef.current = e.nativeEvent.layout.width; }}
+        {...panResponder.panHandlers}
+      >
         {/* 进度填充背景 —— 左浅右深动态渐变 + 右侧水波边缘 */}
         <WaveProgressFill
           progress={progress}

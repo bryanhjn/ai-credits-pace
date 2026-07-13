@@ -1,12 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { ScrollView, View, Text, StyleSheet, AppState, NativeModules } from 'react-native';
+import { ScrollView, View, Text, StyleSheet, AppState, NativeModules, RefreshControl } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import {
   PaperProvider,
-  FAB,
 } from 'react-native-paper';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
-import * as Haptics from 'expo-haptics';
 
 import WorkdayProgress from './src/components/WorkdayProgress';
 import CreditsProgress from './src/components/CreditsProgress';
@@ -208,6 +206,25 @@ export default function App() {
     if (config) refreshCopilotUsed(year, month);
   };
 
+  // 滑动加减已用 Credits：乐观更新 UI + 持久化到 DB
+  // 没缓存（月份未加载完成）时拒绝调整，避免误改其他月份数据
+  const handleAdjustUsed = useCallback(async (delta: number) => {
+    if (delta === 0) return;
+    const cacheKey = getCacheKey(year, month);
+    const cur = creditsCache.current.get(cacheKey);
+    if (!cur) return;
+    const newUsed = Math.max(0, cur.usedCredits + delta);
+    if (newUsed === cur.usedCredits) return;
+    const updated = { ...cur, usedCredits: newUsed };
+    creditsCache.current.set(cacheKey, updated);
+    setCredits(updated);
+    try {
+      await upsertCredits(year, month, cur.totalCredits, newUsed);
+    } catch {
+      // 静默失败：UI 已乐观更新，下次加载回退到 DB 值
+    }
+  }, [year, month, getCacheKey]);
+
   // 编辑模式：点击日期切换加班/请假
   const handleDayPress = useCallback(async (dateIso: string) => {
     const idx = workdays.findIndex((d) => d.dateIso === dateIso);
@@ -266,6 +283,18 @@ export default function App() {
             <ScrollView
               contentContainerStyle={styles.scroll}
               showsVerticalScrollIndicator={false}
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={() => {
+                    if (!copilotConfigRef.current) return;
+                    setRefreshing(true);
+                    refreshCopilotUsed(year, month).finally(() => setRefreshing(false));
+                  }}
+                  tintColor={themeColors.primary}
+                  colors={[themeColors.primary]}
+                />
+              }
             >
               {/* 工作日进度条 */}
               <WorkdayProgress
@@ -283,6 +312,7 @@ export default function App() {
                 percent={creditsPercent}
                 workdayPercent={workdayPercent}
                 onEdit={() => setEditorVisible(true)}
+                onAdjustUsed={handleAdjustUsed}
                 loading={loading}
               />
 
@@ -316,22 +346,6 @@ export default function App() {
             onSave={handleSaveCredits}
             onClose={() => setEditorVisible(false)}
           />
-
-          <FAB
-            icon="refresh"
-            style={styles.fab}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              if (!copilotConfigRef.current) {
-                setEditorVisible(true);
-                return;
-              }
-              setRefreshing(true);
-              refreshCopilotUsed(year, month).finally(() => setRefreshing(false));
-            }}
-            loading={refreshing}
-            color="#FFFFFF"
-          />
         </SafeAreaView>
       </SafeAreaProvider>
     </PaperProvider>
@@ -353,12 +367,5 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 18,
     marginBottom: 16,
-  },
-  fab: {
-    position: 'absolute',
-    right: 20,
-    bottom: 24,
-    backgroundColor: themeColors.primary,
-    borderRadius: 16,
   },
 });
