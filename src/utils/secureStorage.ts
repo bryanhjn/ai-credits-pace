@@ -1,23 +1,23 @@
 import * as SecureStore from 'expo-secure-store';
-import type { CopilotConfig } from '../types';
+import type { CloudFunctionConfig } from '../types';
 
-// PAT 安全存储（Android Keystore / iOS Keychain）。用户名非敏感，为简化一并存。
-const KEY_USERNAME = 'copilot_username';
-const KEY_TOKEN = 'copilot_token';
+// 云函数配置安全存储（Android Keystore / iOS Keychain）
+const KEY_ENDPOINT = 'cf_endpoint';
+const KEY_SECRET = 'cf_secret';
 
-export async function getCopilotConfig(): Promise<CopilotConfig | null> {
-  const username = await SecureStore.getItemAsync(KEY_USERNAME);
-  const token = await SecureStore.getItemAsync(KEY_TOKEN);
-  if (!username || !token) return null;
-  return { username, token };
+export async function getCloudFunctionConfig(): Promise<CloudFunctionConfig | null> {
+  const endpoint = await SecureStore.getItemAsync(KEY_ENDPOINT);
+  const secret = await SecureStore.getItemAsync(KEY_SECRET);
+  if (!endpoint || !secret) return null;
+  return { endpoint, secret };
 }
 
-export async function saveCopilotConfig(username: string, token: string): Promise<void> {
-  await SecureStore.setItemAsync(KEY_USERNAME, username);
-  await SecureStore.setItemAsync(KEY_TOKEN, token);
+export async function saveCloudFunctionConfig(endpoint: string, secret: string): Promise<void> {
+  await SecureStore.setItemAsync(KEY_ENDPOINT, endpoint);
+  await SecureStore.setItemAsync(KEY_SECRET, secret);
 }
 
-export async function clearCopilotConfig(): Promise<void> {
-  await SecureStore.deleteItemAsync(KEY_USERNAME);
-  await SecureStore.deleteItemAsync(KEY_TOKEN);
+export async function clearCloudFunctionConfig(): Promise<void> {
+  await SecureStore.deleteItemAsync(KEY_ENDPOINT);
+  await SecureStore.deleteItemAsync(KEY_SECRET);
 }

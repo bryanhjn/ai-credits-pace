@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, StyleSheet, Animated, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, Animated, Keyboard, Dimensions } from 'react-native';
 import { Portal, Modal, Card, Text, TextInput, Button, Divider } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { themeColors } from '../theme';
-import type { CopilotConfig } from '../types';
+import type { CloudFunctionConfig } from '../types';
 
 // 受控 TextInput 包装：通过 selection 状态保存光标位置
 // 根因：Android 上受控 TextInput 在 value 回写时原生 EditText 会重置光标
@@ -25,9 +25,8 @@ interface Props {
   visible: boolean;
   totalCredits: number;
   usedCredits: number;
-  monthTitle: string;
-  copilotConfig: CopilotConfig | null;
-  onSave: (total: number, used: number, config: CopilotConfig | null) => void;
+  cloudFunctionConfig: CloudFunctionConfig | null;
+  onSave: (total: number, used: number, config: CloudFunctionConfig | null) => void;
   onClose: () => void;
 }
 
@@ -39,27 +38,61 @@ export default function CreditsEditor({
   visible,
   totalCredits,
   usedCredits,
-  monthTitle,
-  copilotConfig,
+  cloudFunctionConfig,
   onSave,
   onClose,
 }: Props) {
   const [totalStr, setTotalStr] = useState(String(totalCredits));
   const [usedStr, setUsedStr] = useState(String(usedCredits));
-  const [githubUser, setGithubUser] = useState('');
-  const [githubToken, setGithubToken] = useState('');
-  const [helpVisible, setHelpVisible] = useState(false);
+  const [cfEndpoint, setCfEndpoint] = useState('');
+  const [cfSecret, setCfSecret] = useState('');
   const scaleAnim = useRef(new Animated.Value(SCALE_HIDDEN)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
+  // 键盘弹出时，根据卡片实际遮挡量上移，避免输入框被键盘挡住
+  const shiftAnim = useRef(new Animated.Value(0)).current;
+  const cardWrapRef = useRef<View>(null);
 
   useEffect(() => {
     if (visible) {
       setTotalStr(String(totalCredits));
       setUsedStr(String(usedCredits));
-      setGithubUser(copilotConfig?.username ?? '');
-      setGithubToken(copilotConfig?.token ?? '');
+      setCfEndpoint(cloudFunctionConfig?.endpoint ?? '');
+      setCfSecret(cloudFunctionConfig?.secret ?? '');
+    } else {
+      // 关闭时复位上移量，避免下次打开残留偏移
+      shiftAnim.setValue(0);
     }
-  }, [visible, totalCredits, usedCredits, copilotConfig]);
+  }, [visible, totalCredits, usedCredits, cloudFunctionConfig, shiftAnim]);
+
+  // 监听键盘事件：测量卡片底边与键盘顶边，仅上移被遮挡的部分
+  useEffect(() => {
+    const showSub = Keyboard.addListener('keyboardDidShow', (e) => {
+      const kbHeight = e.endCoordinates.height;
+      cardWrapRef.current?.measureInWindow((_x, y, _w, h) => {
+        const cardBottom = y + h;
+        const screenH = Dimensions.get('window').height;
+        const kbTop = screenH - kbHeight;
+        // +16 缓冲，确保输入框完整可见
+        const shift = Math.max(0, cardBottom - kbTop + 16);
+        Animated.timing(shiftAnim, {
+          toValue: -shift,
+          duration: 200,
+          useNativeDriver: true,
+        }).start();
+      });
+    });
+    const hideSub = Keyboard.addListener('keyboardDidHide', () => {
+      Animated.timing(shiftAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
+    });
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, [shiftAnim]);
 
   // 打开/关闭动画：缩放 + 淡入淡出（shadow* 不依赖 elevation，故可随 opacity 淡出）
   useEffect(() => {
@@ -99,14 +132,13 @@ export default function CreditsEditor({
   const totalInvalid = !totalStr.trim() || isNaN(totalNum) || totalNum <= 0;
   const usedInvalid = !usedStr.trim() || isNaN(usedNum) || usedNum < 0;
   const usedOverTotal = !totalInvalid && !usedInvalid && usedNum > totalNum;
-  const tokenFormatHint = githubToken.trim() !== '' && !githubToken.trim().startsWith('github_pat_');
   const canSave = !totalInvalid && !usedInvalid;
 
   const handleSave = () => {
     if (!canSave) return;
     const config =
-      githubUser.trim() && githubToken.trim()
-        ? { username: githubUser.trim(), token: githubToken.trim() }
+      cfEndpoint.trim() && cfSecret.trim()
+        ? { endpoint: cfEndpoint.trim(), secret: cfSecret.trim() }
         : null;
     onSave(totalNum, usedNum, config);
   };
@@ -115,7 +147,14 @@ export default function CreditsEditor({
     <Portal>
       <Modal visible={visible} onDismiss={onClose} contentContainerStyle={styles.modal}>
         <Animated.View
-          style={{ transform: [{ scale: scaleAnim }], opacity: opacityAnim }}
+          ref={cardWrapRef}
+          style={{
+            transform: [
+              { translateY: shiftAnim },
+              { scale: scaleAnim },
+            ],
+            opacity: opacityAnim,
+          }}
         >
         <Card style={styles.card} elevation={0}>
           <Card.Content>
@@ -126,40 +165,46 @@ export default function CreditsEditor({
                 color={themeColors.primary}
               />
               <Text variant="titleMedium" style={styles.title}>
-                编辑 {monthTitle} Credits
+                编辑AI Credits
               </Text>
             </View>
 
-            <StableTextInput
-              label="AI Credits 总额"
-              value={totalStr}
-              onChangeText={setTotalStr}
-              mode="flat"
-              keyboardType="numeric"
-              style={styles.input}
-              underlineColor={themeColors.divider}
-              activeUnderlineColor={themeColors.primary}
-              error={totalInvalid}
-              left={<TextInput.Icon icon="credit-card-outline" color={themeColors.textSecondary} />}
-            />
-            {totalInvalid && (
-              <Text style={styles.fieldError}>请输入大于 0 的数字</Text>
-            )}
-            <StableTextInput
-              label="已用 AI Credits"
-              value={usedStr}
-              onChangeText={setUsedStr}
-              mode="flat"
-              keyboardType="numeric"
-              style={styles.input}
-              underlineColor={themeColors.divider}
-              activeUnderlineColor={themeColors.primary}
-              error={usedInvalid}
-              left={<TextInput.Icon icon="chart-line" color={themeColors.textSecondary} />}
-            />
-            {usedInvalid && (
-              <Text style={styles.fieldError}>不能小于 0</Text>
-            )}
+            <View style={styles.rowInputs}>
+              <View style={styles.flex1}>
+                <StableTextInput
+                  label="已用"
+                  value={usedStr}
+                  onChangeText={setUsedStr}
+                  mode="flat"
+                  keyboardType="numeric"
+                  style={styles.input}
+                  underlineColor={themeColors.divider}
+                  activeUnderlineColor={themeColors.primary}
+                  error={usedInvalid}
+                  left={<TextInput.Icon icon="chart-line" color={themeColors.textSecondary} />}
+                />
+                {usedInvalid && (
+                  <Text style={styles.fieldError}>不能小于 0</Text>
+                )}
+              </View>
+              <View style={styles.flex1}>
+                <StableTextInput
+                  label="总额"
+                  value={totalStr}
+                  onChangeText={setTotalStr}
+                  mode="flat"
+                  keyboardType="numeric"
+                  style={styles.input}
+                  underlineColor={themeColors.divider}
+                  activeUnderlineColor={themeColors.primary}
+                  error={totalInvalid}
+                  left={<TextInput.Icon icon="credit-card-outline" color={themeColors.textSecondary} />}
+                />
+                {totalInvalid && (
+                  <Text style={styles.fieldError}>需大于 0</Text>
+                )}
+              </View>
+            </View>
             {usedOverTotal && (
               <Text style={styles.fieldWarning}>已用额度超过总额度</Text>
             )}
@@ -168,53 +213,42 @@ export default function CreditsEditor({
 
             <View style={styles.sectionHeader}>
               <MaterialCommunityIcons
-                name="github"
+                name="cloud-outline"
                 size={20}
                 color={themeColors.primary}
               />
               <Text variant="titleSmall" style={styles.sectionTitle}>
-                GitHub Copilot 自动获取
+                云函数自动获取
               </Text>
             </View>
 
             <StableTextInput
-              label="GitHub 用户名"
-              value={githubUser}
-              onChangeText={setGithubUser}
+              label="云函数 URL"
+              value={cfEndpoint}
+              onChangeText={setCfEndpoint}
               mode="flat"
               autoCapitalize="none"
               autoCorrect={false}
-              style={styles.input}
+              multiline
+              numberOfLines={3}
+              style={styles.cfInput}
               underlineColor={themeColors.divider}
               activeUnderlineColor={themeColors.primary}
-              left={<TextInput.Icon icon="account" color={themeColors.textSecondary} />}
+              left={<TextInput.Icon icon="cloud-outline" color={themeColors.textSecondary} />}
             />
             <StableTextInput
-              label="Personal Access Token"
-              value={githubToken}
-              onChangeText={setGithubToken}
+              label="API 密钥"
+              value={cfSecret}
+              onChangeText={setCfSecret}
               mode="flat"
-              secureTextEntry
               autoCapitalize="none"
               autoCorrect={false}
-              style={styles.input}
+              secureTextEntry
+              style={styles.cfSecretInput}
               underlineColor={themeColors.divider}
               activeUnderlineColor={themeColors.primary}
               left={<TextInput.Icon icon="key" color={themeColors.textSecondary} />}
             />
-            {tokenFormatHint && (
-              <Text style={styles.fieldHint}>Fine-grained PAT 通常以 github_pat_ 开头</Text>
-            )}
-            <TouchableOpacity
-              onPress={() => setHelpVisible(true)}
-              style={styles.helpLink}
-              activeOpacity={0.6}
-            >
-              <MaterialCommunityIcons name="information" size={16} color={themeColors.primary} />
-              <Text variant="bodySmall" style={styles.helpLinkText}>
-                如何获取？
-              </Text>
-            </TouchableOpacity>
 
             <View style={styles.buttonRow}>
               <Button
@@ -239,51 +273,6 @@ export default function CreditsEditor({
           </Card.Content>
         </Card>
         </Animated.View>
-      </Modal>
-
-      {/* PAT 获取帮助弹窗 */}
-      <Modal
-        visible={helpVisible}
-        onDismiss={() => setHelpVisible(false)}
-        contentContainerStyle={styles.modal}
-      >
-        <Card style={styles.card} elevation={0}>
-          <Card.Content>
-            <View style={styles.helpHeader}>
-              <MaterialCommunityIcons name="information" size={22} color={themeColors.primary} />
-              <Text variant="titleMedium" style={styles.helpTitle}>
-                如何获取 GitHub PAT
-              </Text>
-            </View>
-
-            <Text variant="bodyMedium" style={styles.helpBody}>
-{`1、打开GitHub → 头像 → Settings → Developer settings → Personal access tokens → Fine-grained tokens
-2、点击 Generate new token
-3、底部的Permissions，点击Add permissions，勾选"Plan"
-4、其余字段按需填写，建议按照"最小权限原则"进行配置
-5、点击Generate token`}
-            </Text>
-
-            <View style={styles.helpNote}>
-              <MaterialCommunityIcons name="shield-lock" size={16} color={themeColors.textSecondary} />
-              <Text variant="bodySmall" style={styles.helpNoteText}>
-                你的PAT通过secureStorage加密存入系统 Keystore/Keychain，仅本地存储，仅用于直接请求 api.github.com
-              </Text>
-            </View>
-
-            <View style={styles.buttonRow}>
-              <Button
-                mode="contained"
-                onPress={() => setHelpVisible(false)}
-                style={styles.saveBtn}
-                buttonColor={themeColors.primary}
-                textColor="#FFFFFF"
-              >
-                知道了
-              </Button>
-            </View>
-          </Card.Content>
-        </Card>
       </Modal>
     </Portal>
   );
@@ -313,29 +302,41 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: themeColors.textPrimary,
   },
+  rowInputs: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 8,
+  },
+  flex1: {
+    flex: 1,
+  },
   input: {
-    marginBottom: 16,
     backgroundColor: 'transparent',
+  },
+  cfInput: {
+    backgroundColor: 'transparent',
+    fontSize: 13,
+    // 显式高度，确保 3 行完整显示（numberOfLines 在部分机型上不生效）
+    height: 96,
+    marginBottom: 12,
+    textAlignVertical: 'top',
+  },
+  cfSecretInput: {
+    backgroundColor: 'transparent',
+    fontSize: 13,
+    marginBottom: 12,
   },
   fieldError: {
     color: themeColors.creditsDanger,
     fontSize: 12,
-    marginTop: -10,
-    marginBottom: 14,
+    marginTop: -4,
+    marginBottom: 4,
     marginLeft: 4,
   },
   fieldWarning: {
     color: themeColors.creditsWarning,
     fontSize: 12,
-    marginTop: -10,
-    marginBottom: 14,
-    marginLeft: 4,
-  },
-  fieldHint: {
-    color: themeColors.textSecondary,
-    fontSize: 12,
-    marginTop: -10,
-    marginBottom: 14,
+    marginBottom: 10,
     marginLeft: 4,
   },
   buttonRow: {
@@ -364,43 +365,5 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontWeight: '700',
     color: themeColors.textPrimary,
-  },
-  helpLink: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginBottom: 12,
-  },
-  helpLinkText: {
-    color: themeColors.primary,
-  },
-  helpHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 16,
-  },
-  helpTitle: {
-    fontWeight: '700',
-    color: themeColors.textPrimary,
-  },
-  helpBody: {
-    color: themeColors.textPrimary,
-    lineHeight: 22,
-    marginBottom: 16,
-  },
-  helpNote: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-    backgroundColor: themeColors.background,
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 8,
-  },
-  helpNoteText: {
-    flex: 1,
-    color: themeColors.textSecondary,
-    lineHeight: 18,
   },
 });

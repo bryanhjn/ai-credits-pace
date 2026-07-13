@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { ScrollView, View, Text, StyleSheet, AppState, NativeModules, RefreshControl } from 'react-native';
+import { ScrollView, View, Text, StyleSheet, AppState, NativeModules, RefreshControl, Animated } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import {
   PaperProvider,
 } from 'react-native-paper';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import WorkdayProgress from './src/components/WorkdayProgress';
 import CreditsProgress from './src/components/CreditsProgress';
@@ -22,7 +23,7 @@ import {
 } from './src/db/queries';
 import { fetchHolidaysForMonth, buildMonthDays } from './src/api/holidays';
 import { fetchCopilotCreditsUsed } from './src/api/copilot';
-import { getCopilotConfig, saveCopilotConfig, clearCopilotConfig } from './src/utils/secureStorage';
+import { getCloudFunctionConfig, saveCloudFunctionConfig, clearCloudFunctionConfig } from './src/utils/secureStorage';
 import {
   countTotalWorkdays,
   countPassedWorkdays,
@@ -33,7 +34,7 @@ import {
   getToday,
   formatMonthTitle,
 } from './src/utils/dateHelpers';
-import { DayType, type DayInfo, type CreditsData, type CopilotConfig, DEFAULT_TOTAL_CREDITS, DEFAULT_USED_CREDITS } from './src/types';
+import { DayType, type DayInfo, type CreditsData, type CloudFunctionConfig, DEFAULT_TOTAL_CREDITS, DEFAULT_USED_CREDITS } from './src/types';
 import { paperTheme, themeColors } from './src/theme';
 import { expo } from './app.json';
 
@@ -56,12 +57,16 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [editorVisible, setEditorVisible] = useState(false);
   const [editMode, setEditMode] = useState(false);
-  const [copilotConfig, setCopilotConfig] = useState<CopilotConfig | null>(null);
+  const [cfConfig, setCfConfig] = useState<CloudFunctionConfig | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  // 顶部反馈条：云函数查询成功/失败时短暂展示
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const toastAnim = useRef(new Animated.Value(0)).current;
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dbReady = useRef(false);
   const workdaysCache = useRef<Map<string, DayInfo[]>>(new Map());
   const creditsCache = useRef<Map<string, CreditsData>>(new Map());
-  const copilotConfigRef = useRef<CopilotConfig | null>(null);
+  const cfConfigRef = useRef<CloudFunctionConfig | null>(null);
   const yearRef = useRef(year);
   const monthRef = useRef(month);
   const getCacheKey = useCallback((y: number, m: number) => `${y}-${m}`, []);
@@ -124,29 +129,49 @@ export default function App() {
     }
   }, [getCacheKey]);
 
-  // 从 GitHub Copilot 拉取当前周期已用额度（非阻塞，失败静默保留旧值）
+  // 顶部反馈条：滑入展示后 2.4s 自动滑出
+  const showToast = useCallback((message: string, type: 'success' | 'error') => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToast({ message, type });
+    Animated.timing(toastAnim, {
+      toValue: 1,
+      duration: 200,
+      useNativeDriver: true,
+    }).start();
+    toastTimer.current = setTimeout(() => {
+      Animated.timing(toastAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }).start(() => setToast(null));
+    }, 2400);
+  }, [toastAnim]);
+
+  // 从云函数拉取当前周期已用额度（非阻塞，失败保留旧值，顶部反馈结果）
   const refreshCopilotUsed = useCallback(async (y: number, m: number) => {
-    const cfg = copilotConfigRef.current;
+    const cfg = cfConfigRef.current;
     if (!cfg) return;
     // 未来月不拉取，避免用 0 覆盖手动值
     if (y > today.year || (y === today.year && m > today.month)) return;
     try {
-      const used = await fetchCopilotCreditsUsed(cfg.username, cfg.token, y, m);
+      const used = await fetchCopilotCreditsUsed(cfg.endpoint, cfg.secret, y, m);
       const cur = creditsCache.current.get(getCacheKey(y, m)) ?? await getCredits(y, m);
       await upsertCredits(y, m, cur.totalCredits, used);
       const updated = await getCredits(y, m);
       creditsCache.current.set(getCacheKey(y, m), updated);
       // 仅当用户仍在看该月时更新 UI
       if (yearRef.current === y && monthRef.current === m) setCredits(updated);
+      showToast('已更新 Copilot 用量', 'success');
     } catch {
-      // 静默失败，保留旧值
+      // 失败保留旧值，顶部反馈
+      showToast('查询失败，已保留上次数据', 'error');
     }
-  }, [today.year, today.month, getCacheKey]);
+  }, [today.year, today.month, getCacheKey, showToast]);
 
   // 镜像 state 到 ref，供异步回调读取最新值
   useEffect(() => { yearRef.current = year; }, [year]);
   useEffect(() => { monthRef.current = month; }, [month]);
-  useEffect(() => { copilotConfigRef.current = copilotConfig; }, [copilotConfig]);
+  useEffect(() => { cfConfigRef.current = cfConfig; }, [cfConfig]);
 
   // 初次加载 + 月份切换
   useEffect(() => {
@@ -155,13 +180,13 @@ export default function App() {
 
   // 启动时加载 Copilot 配置
   useEffect(() => {
-    getCopilotConfig().then(setCopilotConfig);
+    getCloudFunctionConfig().then(setCfConfig);
   }, []);
 
   // 配置存在时：启动后配置加载完成 / 切月 / 保存配置后，自动拉取已用额度
   useEffect(() => {
-    if (copilotConfig) refreshCopilotUsed(year, month);
-  }, [year, month, copilotConfig, refreshCopilotUsed]);
+    if (cfConfig) refreshCopilotUsed(year, month);
+  }, [year, month, cfConfig, refreshCopilotUsed]);
 
   // app 切回前台时通知桌面组件刷新
   useEffect(() => {
@@ -191,13 +216,13 @@ export default function App() {
   const handleSaveCredits = async (
     total: number,
     used: number,
-    config: CopilotConfig | null
+    config: CloudFunctionConfig | null
   ) => {
     await upsertCredits(year, month, total, used);
-    if (config) await saveCopilotConfig(config.username, config.token);
-    else await clearCopilotConfig();
-    copilotConfigRef.current = config;
-    setCopilotConfig(config);
+    if (config) await saveCloudFunctionConfig(config.endpoint, config.secret);
+    else await clearCloudFunctionConfig();
+    cfConfigRef.current = config;
+    setCfConfig(config);
     const updated = await getCredits(year, month);
     creditsCache.current.set(getCacheKey(year, month), updated);
     setCredits(updated);
@@ -280,6 +305,32 @@ export default function App() {
       <SafeAreaProvider>
         <StatusBar style="dark" />
         <SafeAreaView style={styles.container} edges={['top']}>
+            {toast && (
+              <View pointerEvents="none" style={styles.toastWrap}>
+                <Animated.View
+                  style={[
+                    styles.toast,
+                    styles[toast.type === 'success' ? 'toastSuccess' : 'toastError'],
+                    {
+                      opacity: toastAnim,
+                      transform: [{
+                        translateY: toastAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [-48, 0],
+                        }),
+                      }],
+                    },
+                  ]}
+                >
+                  <MaterialCommunityIcons
+                    name={toast.type === 'success' ? 'check-circle' : 'alert-circle'}
+                    size={18}
+                    color="#FFFFFF"
+                  />
+                  <Text style={styles.toastText}>{toast.message}</Text>
+                </Animated.View>
+              </View>
+            )}
             <ScrollView
               contentContainerStyle={styles.scroll}
               showsVerticalScrollIndicator={false}
@@ -287,7 +338,7 @@ export default function App() {
                 <RefreshControl
                   refreshing={refreshing}
                   onRefresh={() => {
-                    if (!copilotConfigRef.current) return;
+                    if (!cfConfigRef.current) return;
                     setRefreshing(true);
                     refreshCopilotUsed(year, month).finally(() => setRefreshing(false));
                   }}
@@ -341,8 +392,7 @@ export default function App() {
             visible={editorVisible}
             totalCredits={credits.totalCredits}
             usedCredits={credits.usedCredits}
-            monthTitle={monthTitle}
-            copilotConfig={copilotConfig}
+            cloudFunctionConfig={cfConfig}
             onSave={handleSaveCredits}
             onClose={() => setEditorVisible(false)}
           />
@@ -367,5 +417,37 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 18,
     marginBottom: 16,
+  },
+  toastWrap: {
+    position: 'absolute',
+    top: 56,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 999,
+  },
+  toast: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.18,
+    shadowRadius: 6,
+  },
+  toastSuccess: {
+    backgroundColor: themeColors.creditsSafe,
+  },
+  toastError: {
+    backgroundColor: themeColors.creditsDanger,
+  },
+  toastText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '600',
   },
 });

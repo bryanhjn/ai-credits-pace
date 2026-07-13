@@ -39,8 +39,8 @@ export interface HolidayEntry {
   isOffDay: boolean; // true=放假, false=调休补班
 }
 
-// GitHub Copilot 自动获取配置
-export interface CopilotConfig {
-  username: string;
-  token: string;
+// 云函数数据源配置
+export interface CloudFunctionConfig {
+  endpoint: string; // SCF API 网关触发器 URL
+  secret: string; // X-Api-Key 鉴权密钥
 }
