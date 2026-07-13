@@ -34,17 +34,33 @@
 
 ## 📱 Screenshot
 
-主页面：
+##### 主页面：
 
 <img src="assets/screenshots/main.jpg" alt="main" style="zoom: 33%;" />
 
-【Beta功能】自动获取GitHub Copilot的AI Credits用量
+
+
+##### 【仅限1.2版本的Beta功能】自动获取GitHub Copilot的AI Credits用量。
+
+- 此功能我没有测试过，因为我没有个人订阅的账号。不过它是一个仅查询的接口，就算有bug也是无害的。
+
+* 该功能只支持个人版订阅，因为Organization/Enterprise版用到的API不一样，并且需要你有Organization/Enterprise的管理员权限
 
 <img src="assets\screenshots\CreditsEdit.jpg" alt="CreditsEdit" style="zoom:33%;" />
 
 
 
-AI Credits颜色会随着用量与工作日进度的百分比关系而改变。
+* 【1.3及以后的版本】我的解决方案是：
+
+  - 在使用Copilot的电脑上写一个爬虫，把数据通过腾讯云的云函数上传到云数据库（MongoDB）
+  - App通过云函数从云服务器拉取数据
+  - 使用云函数几乎（甚至完全）没有成本
+
+  <img src="assets\screenshots\SCF.jpg" alt="SCF" style="zoom:33%;" />
+
+  - **cloud-function**目录下的代码就是你需要上传到云函数的代码包，test-data.json不仅是测试数据，也揭示了数据结构。.trae/documents目录下也有AI写的开发计划。希望这些资料足够你完成云函数的部署。如果不懂的话问问你的AI，直接把腾讯云的CloudBase MCP给AI，它应该能替你搞定！
+
+##### AI Credits颜色会随着用量与工作日进度的百分比关系而改变。
 
 当AI Credits与工作日进度相当时，显示橙色：
 
@@ -53,6 +69,8 @@ AI Credits颜色会随着用量与工作日进度的百分比关系而改变。
 超出进度时，红色：
 
 <img src="assets\screenshots\color2.jpg" alt="红色" style="zoom:33%;" />
+
+Tip：在AI Credits卡片上左右滑动可以快速修改已用量。
 
 ------------------------------------------------------------------------
 
