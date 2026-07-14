@@ -9,7 +9,7 @@ export const themeColors = {
   primaryBg: '#EEF2FF',
 
   // 背景与表面
-  background: '#F4F5F7',
+  background: '#FAF9F5',
   surface: '#FFFFFF',
   surfaceVariant: '#F6F7F9',
 

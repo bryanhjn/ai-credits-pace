@@ -98,8 +98,8 @@ export default function CreditsProgress({ used, total, percent, workdayPercent, 
           <View style={styles.header}>
             <View style={[styles.iconChip, { backgroundColor: withAlpha(color, 0.12) }]}>
               <MaterialCommunityIcons
-                name="robot"
-                size={18}
+                name="github"
+                size={22}
                 color={color}
               />
             </View>

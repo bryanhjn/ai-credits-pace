@@ -46,7 +46,6 @@ export default function WaveProgressFill({ progress, lightColor, darkColor, ligh
     const { width, height } = size;
     if (width === 0 || height === 0) return '';
     const pw = clampedProgress * width;
-    // 顶边到波浪起点
     let d = `M 0 0 L ${pw.toFixed(2)} 0`;
     // 沿右侧边生成正弦波（向下），加入时间相位使其流动
     for (let y = 0; y <= height; y += SAMPLE_STEP) {

@@ -34,7 +34,7 @@ export default function WorkdayProgress({ passed, total, percent, monthTitle, lo
             <View style={[styles.iconChip, { backgroundColor: withAlpha(themeColors.primary, 0.12) }]}>
               <MaterialCommunityIcons
                 name="calendar-check"
-                size={18}
+                size={22}
                 color={themeColors.primary}
               />
             </View>
