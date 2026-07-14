@@ -59,6 +59,8 @@
   <img src="assets\screenshots\SCF.jpg" alt="SCF" style="zoom:33%;" />
 
   - **cloud-function**目录下的代码就是你需要上传到云函数的代码包，test-data.json不仅是测试数据，也揭示了数据结构。.trae/documents目录下也有AI写的开发计划。希望这些资料足够你完成云函数的部署。如果不懂的话问问你的AI，直接把腾讯云的CloudBase MCP给AI，它应该能替你搞定！
+ 
+  - 负责在PC上爬取用量的程序也已经开源，请见[ai-credits-data-collector](https://github.com/bryanhjn/ai-credits-data-collector)
 
 ##### AI Credits颜色会随着用量与工作日进度的百分比关系而改变。
 
