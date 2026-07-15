@@ -1,10 +1,11 @@
 import React, { useRef, useEffect } from 'react';
 import { View, StyleSheet, PanResponder } from 'react-native';
-import { Card, Text, IconButton } from 'react-native-paper';
+import { Card, Text } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { themeColors, getCreditsColor, getCreditsDarkColor, withAlpha } from '../theme';
 import CardLoading from './CardLoading';
+import GlassIconButton from './GlassIconButton';
 import WaveProgressFill from './WaveProgressFill';
 
 interface Props {
@@ -105,13 +106,11 @@ export default function CreditsProgress({ used, total, percent, workdayPercent, 
             </View>
             <Text variant="titleMedium" style={styles.title}>AI Credits</Text>
             <View style={styles.headerSpacer} />
-            <IconButton
-              icon="pencil"
-              size={20}
+            <GlassIconButton
+              name="pencil-outline"
               onPress={handleEdit}
-              iconColor={themeColors.textSecondary}
-              style={styles.editBtn}
               accessibilityLabel="编辑 Credits"
+              style={styles.editBtn}
             />
           </View>
 

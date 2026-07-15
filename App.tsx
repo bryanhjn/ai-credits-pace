@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { ScrollView, View, Text, StyleSheet, AppState, NativeModules, RefreshControl, Animated } from 'react-native';
+import { ScrollView, View, Text, StyleSheet, AppState, NativeModules, RefreshControl, Animated, Dimensions } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import {
   PaperProvider,
@@ -42,6 +42,14 @@ import { expo } from './app.json';
 const APP_VERSION = expo.version;
 const VERSION_LABEL = `${__DEV__ ? 'Dev ' : ''}Ver ${APP_VERSION}`;
 
+// 屏幕物理纵向分辨率 > 2700 时，内容已可一屏展示，禁用滚动
+const screenInfo = Dimensions.get('screen');
+const SCREEN_HEIGHT_PX = screenInfo.height * screenInfo.scale;
+const SCROLL_ENABLED = SCREEN_HEIGHT_PX <= 2700;
+
+// 自动刷新节流间隔：距上次刷新不足 15 分钟时跳过自动刷新（手动刷新不受影响）
+const AUTO_REFRESH_THROTTLE_MS = 15 * 60 * 1000;
+
 export default function App() {
   const today = getToday();
   const [year, setYear] = useState(today.year);
@@ -69,6 +77,10 @@ export default function App() {
   const cfConfigRef = useRef<CloudFunctionConfig | null>(null);
   const yearRef = useRef(year);
   const monthRef = useRef(month);
+  // 上次成功刷新的时间戳，用于自动刷新节流（手动刷新不受限）
+  const lastRefreshAtRef = useRef(0);
+  // 标记冷启动时 cfConfig 是否已加载，加载完成时触发一次自动刷新
+  const cfConfigLoadedRef = useRef(false);
   const getCacheKey = useCallback((y: number, m: number) => `${y}-${m}`, []);
 
   // 加载某月数据
@@ -161,12 +173,21 @@ export default function App() {
       creditsCache.current.set(getCacheKey(y, m), updated);
       // 仅当用户仍在看该月时更新 UI
       if (yearRef.current === y && monthRef.current === m) setCredits(updated);
+      // 记录成功刷新时间，用于自动刷新节流（手动刷新同样更新该时间）
+      lastRefreshAtRef.current = Date.now();
       showToast('已更新 Copilot 用量', 'success');
     } catch {
       // 失败保留旧值，顶部反馈
       showToast('查询失败，已保留上次数据', 'error');
     }
   }, [today.year, today.month, getCacheKey, showToast]);
+
+  // 自动刷新：受 15 分钟节流限制，距上次刷新不足阈值则静默跳过
+  // 用于冷启动与后台恢复；手动刷新（下拉/保存配置）直接调用 refreshCopilotUsed 不受限
+  const autoRefreshCopilot = useCallback((y: number, m: number) => {
+    if (Date.now() - lastRefreshAtRef.current < AUTO_REFRESH_THROTTLE_MS) return;
+    refreshCopilotUsed(y, m);
+  }, [refreshCopilotUsed]);
 
   // 镜像 state 到 ref，供异步回调读取最新值
   useEffect(() => { yearRef.current = year; }, [year]);
@@ -183,20 +204,24 @@ export default function App() {
     getCloudFunctionConfig().then(setCfConfig);
   }, []);
 
-  // 配置存在时：启动后配置加载完成 / 切月 / 保存配置后，自动拉取已用额度
+  // 冷启动：cfConfig 首次加载完成时触发一次自动刷新（切换月份不触发，避免重复请求）
   useEffect(() => {
-    if (cfConfig) refreshCopilotUsed(year, month);
-  }, [year, month, cfConfig, refreshCopilotUsed]);
+    if (cfConfig && !cfConfigLoadedRef.current) {
+      cfConfigLoadedRef.current = true;
+      autoRefreshCopilot(yearRef.current, monthRef.current);
+    }
+  }, [cfConfig, autoRefreshCopilot]);
 
-  // app 切回前台时通知桌面组件刷新
+  // app 切回前台时：触发自动刷新（受节流限制）并通知桌面组件刷新
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
       if (state === 'active') {
+        autoRefreshCopilot(yearRef.current, monthRef.current);
         NativeModules.WidgetRefreshModule?.refreshWidget();
       }
     });
     return () => sub.remove();
-  }, []);
+  }, [autoRefreshCopilot]);
 
   // 计算工作日进度
   const totalWorkdays = countTotalWorkdays(workdays);
@@ -332,6 +357,7 @@ export default function App() {
               </View>
             )}
             <ScrollView
+              scrollEnabled={SCROLL_ENABLED}
               contentContainerStyle={styles.scroll}
               showsVerticalScrollIndicator={false}
               refreshControl={

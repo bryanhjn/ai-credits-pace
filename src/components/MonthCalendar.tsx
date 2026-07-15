@@ -1,13 +1,14 @@
 import React, { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Calendar, LocaleConfig } from 'react-native-calendars';
-import { IconButton, Text } from 'react-native-paper';
+import { Text } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { DayType, type DayInfo } from '../types';
 import { themeColors } from '../theme';
 import { toIsoDate, getToday } from '../utils/dateHelpers';
 import CardLoading from './CardLoading';
+import GlassIconButton from './GlassIconButton';
 
 // 配置中文 locale
 LocaleConfig.locales['zh'] = {
@@ -194,13 +195,12 @@ export default function MonthCalendar({ year, month, days, onMonthChange, editMo
         />
         {/* 编辑/保存按钮 */}
         {onToggleEdit && (
-          <IconButton
-            icon={editMode ? 'content-save' : 'pencil'}
-            size={20}
+          <GlassIconButton
+            name={editMode ? 'check' : 'pencil-outline'}
+            active={editMode}
             onPress={handleToggleEdit}
-            iconColor={editMode ? themeColors.primary : themeColors.textSecondary}
-            style={styles.editBtn}
             accessibilityLabel={editMode ? '保存' : '编辑日历'}
+            style={styles.editBtn}
           />
         )}
       </View>
