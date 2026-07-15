@@ -6,23 +6,25 @@ import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.content.res.ColorStateList
+import android.content.res.Configuration
 import android.database.sqlite.SQLiteDatabase
-import android.os.Build
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.RectF
+import android.graphics.Typeface
 import android.util.Log
 import android.widget.RemoteViews
+import java.io.File
 import java.time.LocalDate
-import java.util.Locale
 
 /**
- * 2x2 桌面组件：显示工作日进度条 + AI Credits 进度条。
+ * 双圆环桌面组件：内圈工作日进度 + 外圈 AI Credits 进度，
+ * 中心显示百分比数字，Apple Watch 运动圆环风格。
  *
- * 计算逻辑移植自 src/utils/workdayCalc.ts 与 App.tsx 第 120-132 行，
- * 直接读取 monthlyProgress.db（与 app 同进程，可直接访问内部 DB）。
- *
- * 注意：app 通过 expo-sqlite 开启了 WAL 模式（见 src/db/database.ts），
- * 近期写入可能仍在 -wal 文件中未 checkpoint。因此这里必须用
- * enableWriteAheadLogging=true 的方式打开 DB，才能读到完整的最新数据。
+ * 通过 Canvas 绘制 512×512 Bitmap 后设置到 ImageView，
+ * 计算逻辑移植自 src/utils/workdayCalc.ts 与 App.tsx。
  */
 class WorkdayWidgetProvider : AppWidgetProvider() {
 
@@ -42,7 +44,7 @@ class WorkdayWidgetProvider : AppWidgetProvider() {
     private fun updateWidget(context: Context, manager: AppWidgetManager, widgetId: Int) {
         val views = RemoteViews(context.packageName, R.layout.widget_workday)
 
-        // 点击组件打开 app —— 放在最前面，确保即使后续 action 失败点击也能生效
+        // 点击组件打开 app
         val launchIntent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
@@ -55,48 +57,142 @@ class WorkdayWidgetProvider : AppWidgetProvider() {
         val today = LocalDate.now()
         val (workdayPercent, creditsPercent, paceDiff) = computeProgress(context, today)
 
-        // 标题行文字（标题在进度条上方）
-        views.setTextViewText(
-            R.id.workday_text,
-            "工作日(${formatPercent(workdayPercent)}%)"
-        )
-        views.setTextViewText(
-            R.id.credits_text,
-            "Credits(${formatPercent(creditsPercent)}%)"
-        )
+        val isDark = (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
+            Configuration.UI_MODE_NIGHT_YES
 
-        // 工作日进度条（靛蓝 #6366F1，tint 在 XML 中静态设置）
-        views.setProgressBar(
-            R.id.workday_bar, 100,
-            workdayPercent.toInt().coerceIn(0, 100), false
-        )
-
-        // Credits 进度条（按配速差值动态变色）
-        views.setProgressBar(
-            R.id.credits_bar, 100,
-            creditsPercent.toInt().coerceIn(0, 100), false
-        )
-        // 仅 API 31+ 支持动态改 tint；低版本保持 XML 默认绿色
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            views.setColorStateList(
-                R.id.credits_bar,
-                "setProgressTintList",
-                ColorStateList.valueOf(getCreditsColor(paceDiff))
-            )
-        }
+        val bitmap = renderRingWidget(workdayPercent, creditsPercent, paceDiff, isDark)
+        views.setImageViewBitmap(R.id.widget_image, bitmap)
 
         manager.updateAppWidget(widgetId, views)
     }
 
+    // ============================
+    //  位图渲染：双圆环 + 中心文字
+    // ============================
+
+    private fun renderRingWidget(
+        workdayPercent: Double,
+        creditsPercent: Double,
+        paceDiff: Double,
+        isDark: Boolean
+    ): Bitmap {
+        val w = 512f
+        val h = 512f
+        val cx = w / 2f
+        val cy = h / 2f
+
+        val bitmap = Bitmap.createBitmap(w.toInt(), h.toInt(), Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+
+        // ---- 背景：浅色模式用 APP 背景色 #FAF9F5，深色模式用暗色 ----
+        val bgColor = if (isDark) Color.parseColor("#1E1E2E") else Color.parseColor("#FAF9F5")
+        val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = bgColor }
+        canvas.drawRoundRect(RectF(0f, 0f, w, h), 48f, 48f, bgPaint)
+
+        // ---- 圆环参数（加粗到 2 倍）----
+        // 外圈: Credits
+        val outerRadius = 200f
+        val outerThickness = 44f
+        // 内圈: 工作日
+        val innerRadius = 140f
+        val innerThickness = 44f
+
+        val creditsColor = getCreditsColor(paceDiff)
+
+        // ---- 外圈：Credits ----
+        drawArcRing(
+            canvas, cx, cy, outerRadius, outerThickness,
+            (creditsPercent / 100.0).toFloat(),
+            creditsColor
+        )
+
+        // ---- 内圈：工作日 ----
+        drawArcRing(
+            canvas, cx, cy, innerRadius, innerThickness,
+            (workdayPercent / 100.0).toFloat(),
+            COLOR_WORKDAY
+        )
+
+        // ---- 中心百分比文字 ----
+        val workdayInt = workdayPercent.toInt()
+        val creditsInt = creditsPercent.toInt()
+
+        // 工作日百分比（上方）
+        val workdayTextColor = if (isDark) Color.parseColor("#A5B4FC") else COLOR_WORKDAY
+        val workdayTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            textAlign = Paint.Align.CENTER
+            color = workdayTextColor
+            textSize = 72f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        }
+        canvas.drawText("${workdayInt}%", cx, cy - 12f, workdayTextPaint)
+
+        // Credits 百分比（下方）
+        val creditsTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            textAlign = Paint.Align.CENTER
+            color = creditsColor
+            textSize = 72f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        }
+        canvas.drawText("${creditsInt}%", cx, cy + 64f, creditsTextPaint)
+
+        return bitmap
+    }
+
+    /**
+     * 绘制一段圆环弧线（带圆角端点 + 淡色轨道）。
+     * 轨道颜色取 fillColor 的 RGB + 低 alpha，呈现更淡的同色调。
+     * @param sweepFraction 进度 0..1，超过 1 时按 1 处理
+     */
+    private fun drawArcRing(
+        canvas: Canvas,
+        cx: Float, cy: Float,
+        radius: Float,
+        thickness: Float,
+        sweepFraction: Float,
+        fillColor: Int
+    ) {
+        val rect = RectF(cx - radius, cy - radius, cx + radius, cy + radius)
+        val sweep = (sweepFraction.coerceIn(0f, 1f) * 360f)
+
+        // 轨道：fillColor 的 RGB + 15% alpha
+        val trackColor = (fillColor and 0x00FFFFFF) or 0x26000000
+
+        // 轨道
+        val trackPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = thickness
+            strokeCap = Paint.Cap.ROUND
+            color = trackColor
+        }
+        canvas.drawArc(rect, START_ANGLE, 360f, false, trackPaint)
+
+        // 进度弧
+        if (sweep > 0f) {
+            val progressPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.STROKE
+                strokeWidth = thickness
+                strokeCap = Paint.Cap.ROUND
+                color = fillColor
+            }
+            canvas.drawArc(rect, START_ANGLE, sweep, false, progressPaint)
+        }
+    }
+
+    // ============================
+    //  SQLite 读数
+    // ============================
+
     /**
      * 读取 SQLite 计算当月进度。
-     * 返回 (workdayPercent, creditsPercent, creditsRatio)，无数据时全部为 0。
+     * 返回 (workdayPercent, creditsPercent, paceDiff)，无数据时全部为 0。
      */
     private fun computeProgress(
         context: Context,
         today: LocalDate
     ): Triple<Double, Double, Double> {
-        val dbFile = context.getDatabasePath(DB_NAME)
+        // expo-sqlite 将数据库存在 filesDir/SQLite/ 下，而非 Android 默认的 databases/ 目录
+        val dbFile = File(context.filesDir, "SQLite/$DB_NAME")
         if (!dbFile.exists()) {
             Log.w(TAG, "DB file not found: ${dbFile.absolutePath}")
             return Triple(0.0, 0.0, 0.0)
@@ -107,18 +203,14 @@ class WorkdayWidgetProvider : AppWidgetProvider() {
         var creditsRatio = 0.0
 
         try {
-            // 关键：用 OPEN_READWRITE + enableWriteAheadLogging 才能读到 -wal 文件中的最新数据。
-            // OPEN_READONLY 不会应用 WAL，导致读不到未 checkpoint 的写入。
             val db = SQLiteDatabase.openDatabase(
                 dbFile.absolutePath, null,
                 SQLiteDatabase.OPEN_READWRITE or SQLiteDatabase.ENABLE_WRITE_AHEAD_LOGGING
             )
             db.use {
-                // 1. 工作日进度
                 val (totalWorkdays, passedWorkdays) = queryWorkdays(it, today)
                 workdayPercent = calcProgressPercent(passedWorkdays, totalWorkdays)
 
-                // 2. Credits 进度（REAL 列）
                 val (used, total) = queryCredits(it, today)
                 creditsRatio = calcCreditsRatio(used, total)
                 creditsPercent = Math.round(creditsRatio * 1000) / 10.0
@@ -131,11 +223,7 @@ class WorkdayWidgetProvider : AppWidgetProvider() {
         return Triple(workdayPercent, creditsPercent, creditsPercent - workdayPercent)
     }
 
-    /** 查询当月工作日，返回 (totalWorkdays, passedWorkdays)。 */
-    private fun queryWorkdays(
-        db: SQLiteDatabase,
-        today: LocalDate
-    ): Pair<Int, Int> {
+    private fun queryWorkdays(db: SQLiteDatabase, today: LocalDate): Pair<Int, Int> {
         val cursor = db.rawQuery(
             "SELECT day, type FROM monthly_workdays WHERE year=? AND month=?",
             arrayOf(today.year.toString(), today.monthValue.toString())
@@ -156,11 +244,7 @@ class WorkdayWidgetProvider : AppWidgetProvider() {
         return total to passed
     }
 
-    /** 查询当月 Credits，返回 (used, total)。无数据时返回默认值 (0, 6000)。 */
-    private fun queryCredits(
-        db: SQLiteDatabase,
-        today: LocalDate
-    ): Pair<Double, Double> {
+    private fun queryCredits(db: SQLiteDatabase, today: LocalDate): Pair<Double, Double> {
         val cursor = db.rawQuery(
             "SELECT total_credits, used_credits FROM monthly_credits WHERE year=? AND month=?",
             arrayOf(today.year.toString(), today.monthValue.toString())
@@ -177,6 +261,10 @@ class WorkdayWidgetProvider : AppWidgetProvider() {
         return used to total
     }
 
+    // ============================
+    //  companion
+    // ============================
+
     companion object {
         private const val TAG = "WorkdayWidget"
         const val ACTION_REFRESH = "com.bryanhjn.aicreditspace.ACTION_REFRESH_WIDGET"
@@ -184,45 +272,38 @@ class WorkdayWidgetProvider : AppWidgetProvider() {
         private const val DEFAULT_TOTAL_CREDITS = 6000
         private const val DEFAULT_USED_CREDITS = 0
 
-        private const val COLOR_CREDITS_SAFE = 0xFF10B981.toInt()
-        private const val COLOR_CREDITS_WARNING = 0xFFF59E0B.toInt()
-        private const val COLOR_CREDITS_DANGER = 0xFFEF4444.toInt()
+        // 圆环起始角度（-90° = 12 点钟方向）
+        private const val START_ANGLE = -90f
 
-        // 配速阈值（百分比点）—— 与 src/theme.ts PACE_THRESHOLD_PERCENT 保持一致
+        // 与 APP 一致的颜色
+        private const val COLOR_WORKDAY = 0xFF6366F1.toInt() // Indigo
+        private const val COLOR_CREDITS_SAFE = 0xFF10B981.toInt()   // 绿
+        private const val COLOR_CREDITS_WARNING = 0xFFF59E0B.toInt() // 黄
+        private const val COLOR_CREDITS_DANGER = 0xFFEF4444.toInt()  // 红
+
         private const val PACE_THRESHOLD_PERCENT = 5.0
 
         // ===== 移植自 src/utils/workdayCalc.ts =====
 
-        // DayType: 0=Workday, 1=Weekend, 2=Holiday, 3=AdjustedWorkday, 4=Overtime, 5=Leave
         private fun isWorkdayType(type: Int): Boolean = type == 0 || type == 3 || type == 4
 
-        // 计算进度百分比（0-100，保留 1 位小数）
         private fun calcProgressPercent(passed: Int, total: Int): Double {
             if (total <= 0) return 0.0
             val pct = passed.toDouble() / total * 100
             return Math.round(pct * 10) / 10.0
         }
 
-        // 计算 Credits 使用比例（0-1，可能 >1）
         private fun calcCreditsRatio(used: Double, total: Double): Double {
             if (total <= 0) return 0.0
             return used / total
         }
 
         // ===== 移植自 src/theme.ts getCreditsColor() =====
-        // 基于 paceDiff = creditsPercent - workdayPercent
-        // diff < -5 → 绿（用量落后进度，充裕）
-        // diff >  5 → 红（用量超前进度，紧张）
-        // 其间      → 黄（节奏匹配）
+
         private fun getCreditsColor(diff: Double): Int = when {
             diff > PACE_THRESHOLD_PERCENT  -> COLOR_CREDITS_DANGER
             diff < -PACE_THRESHOLD_PERCENT -> COLOR_CREDITS_SAFE
             else                           -> COLOR_CREDITS_WARNING
-        }
-
-        // 格式化为 1 位小数字符串（与 app 内显示一致，固定用点号分隔）
-        private fun formatPercent(value: Double): String {
-            return String.format(Locale.US, "%.1f", value)
         }
     }
 }

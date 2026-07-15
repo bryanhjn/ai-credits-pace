@@ -441,7 +441,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     color: themeColors.textMuted,
     fontSize: 12,
-    marginTop: 18,
+    marginTop: 28,
     marginBottom: 16,
   },
   toastWrap: {

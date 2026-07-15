@@ -1,6 +1,6 @@
 {
   "name": "monthlyprogress",
-  "version": "1.3.6",
+  "version": "1.4.0",
   "main": "index.ts",
   "dependencies": {
     "@expo/vector-icons": "^15.1.1",
