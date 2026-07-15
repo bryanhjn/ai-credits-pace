@@ -1,9 +1,10 @@
 import React, { useMemo } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, TouchableOpacity } from 'react-native';
 import { Calendar, LocaleConfig } from 'react-native-calendars';
 import { Text } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import Svg, { Defs, RadialGradient, Stop, Circle } from 'react-native-svg';
 import { DayType, type DayInfo } from '../types';
 import { themeColors } from '../theme';
 import { toIsoDate, getToday } from '../utils/dateHelpers';
@@ -34,6 +35,62 @@ interface Props {
   onToggleEdit?: () => void;
   onDayPress?: (dateIso: string) => void;
   loading?: boolean;
+}
+
+// 自定义日期单元格组件 —— 使用 SVG 径向渐变实现边缘高斯模糊
+function DayComponent({ date, state, marking, onPress, children }: any) {
+  const dayNumber = date?.day;
+  if (dayNumber === undefined) {
+    return <View style={{ width: 32, height: 32 }} />;
+  }
+
+  const customStyles = marking?.customStyles;
+  const containerStyle = customStyles?.container || {};
+  const textStyle = customStyles?.text || {};
+  const bgColor: string = containerStyle.backgroundColor || 'transparent';
+  const textColor: string = textStyle.color || themeColors.textPrimary;
+  const fontWeight = (textStyle.fontWeight || '600') as '600' | '700';
+  const isToday = containerStyle.borderColor === themeColors.today;
+  const isDisabled = state === 'disabled';
+  const isInactive = state === 'inactive';
+  const dateString: string = date?.dateString || '';
+
+  if (isDisabled || isInactive) {
+    return (
+      <View style={cellStyles.base}>
+        <Text style={cellStyles.mutedText}>{children}</Text>
+      </View>
+    );
+  }
+
+  if (bgColor === 'transparent') {
+    return (
+      <TouchableOpacity onPress={() => onPress?.(date)} activeOpacity={0.6}>
+        <View style={cellStyles.base}>
+          <Text style={[cellStyles.dayText, { color: textColor, fontWeight }]}>{children}</Text>
+        </View>
+      </TouchableOpacity>
+    );
+  }
+
+  const gradientId = `rg-${dateString.replace(/-/g, '')}`;
+
+  return (
+    <TouchableOpacity onPress={() => onPress?.(date)} activeOpacity={0.6}>
+      <View style={[cellStyles.base, isToday && cellStyles.todayRing]}>
+        <Svg width={32} height={32} style={cellStyles.svgLayer}>
+          <Defs>
+            <RadialGradient id={gradientId} cx="50%" cy="50%" r="50%">
+              <Stop offset="75%" stopColor={bgColor} stopOpacity="1" />
+              <Stop offset="100%" stopColor={bgColor} stopOpacity="0" />
+            </RadialGradient>
+          </Defs>
+          <Circle cx="16" cy="16" r="16" fill={`url(#${gradientId})`} />
+        </Svg>
+        <Text style={[cellStyles.dayText, { color: textColor, fontWeight }]}>{children}</Text>
+      </View>
+    </TouchableOpacity>
+  );
 }
 
 export default function MonthCalendar({ year, month, days, onMonthChange, editMode, onToggleEdit, onDayPress, loading }: Props) {
@@ -77,11 +134,6 @@ export default function MonthCalendar({ year, month, days, onMonthChange, editMo
         customStyles: {
           container: {
             backgroundColor: bgColor,
-            borderRadius: 16,
-            width: 32,
-            height: 32,
-            justifyContent: 'center',
-            alignItems: 'center',
           },
           text: {
             color: textColor,
@@ -113,12 +165,7 @@ export default function MonthCalendar({ year, month, days, onMonthChange, editMo
             container: {
               borderWidth: 2,
               borderColor: themeColors.today,
-              borderRadius: 16,
               backgroundColor: themeColors.primaryBg,
-              width: 32,
-              height: 32,
-              justifyContent: 'center',
-              alignItems: 'center',
             },
             text: { color: themeColors.primaryDark, fontWeight: '700', fontSize: 14 },
           },
@@ -158,6 +205,7 @@ export default function MonthCalendar({ year, month, days, onMonthChange, editMo
           onDayPress={handleDayPress}
           markedDates={markedDates}
           markingType="custom"
+          dayComponent={DayComponent}
           renderArrow={(direction: string) => (
             <MaterialCommunityIcons
               name={direction === 'left' ? 'chevron-left' : 'chevron-right'}
@@ -168,6 +216,7 @@ export default function MonthCalendar({ year, month, days, onMonthChange, editMo
           theme={{
             backgroundColor: 'transparent',
             calendarBackground: 'transparent',
+            weekVerticalMargin: 5,
             todayTextColor: themeColors.today,
             todayBackgroundColor: 'transparent',
             arrowColor: themeColors.primary,
@@ -188,6 +237,7 @@ export default function MonthCalendar({ year, month, days, onMonthChange, editMo
                 justifyContent: 'center',
                 gap: 12,
                 alignItems: 'center',
+                marginTop: -4,
               },
             },
           } as any}
@@ -249,14 +299,14 @@ const styles = StyleSheet.create({
   },
   editBtn: {
     position: 'absolute',
-    top: 6,
+    top: 0,
     right: 0,
     margin: 0,
   },
   legend: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'flex-start',
+    justifyContent: 'center',
     gap: 6,
     marginTop: 10,
     paddingHorizontal: 4,
@@ -280,5 +330,30 @@ const styles = StyleSheet.create({
     color: themeColors.textMuted,
     fontSize: 11,
     letterSpacing: 0.2,
+  },
+});
+
+// 日期单元格组件的样式
+const cellStyles = StyleSheet.create({
+  base: {
+    width: 32,
+    height: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  todayRing: {
+    borderWidth: 2,
+    borderColor: themeColors.today,
+    borderRadius: 16,
+  },
+  svgLayer: {
+    position: 'absolute',
+  },
+  dayText: {
+    fontSize: 14,
+  },
+  mutedText: {
+    color: themeColors.textMuted,
+    fontSize: 14,
   },
 });
